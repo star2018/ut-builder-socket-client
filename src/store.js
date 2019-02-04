@@ -54,7 +54,9 @@ export default {
           transports: ['websocket'],
           path: context,
         })
-        state.socket.on('disconnect', () => {})
+        state.socket.on('disconnect', () => {
+          state.socket = null
+        })
       }
     },
 

@@ -3,44 +3,29 @@
     <div class="toolbar">
       <i
         class="iconfont icon-json"
-        :class="{ 'state-enabled': jsonEditor }"
+        :class="{ active: editor === 'json' }"
         title="json编辑模式"
         @click="jsonEdit"
       ></i>
-      <i class="iconfont icon-format" title="格式化" @click="jsonPretty"></i>
+      <i
+        class="iconfont icon-format"
+        title="json格式化"
+        @click="jsonPretty"
+      ></i>
       <div v-if="!session" class="toolbar-mask"></div>
     </div>
 
-    <split-panels v-if="editor === 'json'" class="json-editor-wrap" watch-slots>
-      <div
-        class="json-editor-scroll"
-        splitpanes-default="60"
-        splitpanes-min="20"
-        splitpanes-max="80"
-      >
-        <div
-          class="json-editor"
-          :key="jsonEditorKey"
-          ref="jsonEditorContainer"
-        ></div>
-      </div>
+    <template v-if="editor === 'json'">
+      <json-editor :key="session.token" ref="jsonEditor" v-model="message" />
+    </template>
 
-      <div class="json-code json-editor-scroll" splitpanes-default="40">
-        <pre ref="jsonCode" class="highlight-code" v-html="messageCode"></pre>
-      </div>
-    </split-panels>
-
-    <div v-else class="text-editor-wrap">
-      <textarea
-        class="text-editor"
-        ref="textarea"
-        placeholder="按 Ctrl + Enter 发送"
-        @keyup.ctrl.enter="commit"
-        v-model="message"
-        :class="{ disabled }"
-        :disabled="disabled"
-      ></textarea>
-    </div>
+    <text-editor
+      v-else
+      ref="textEditor"
+      v-model="message"
+      :disabled="!session"
+      @keyup.ctrl.enter="commit"
+    />
   </div>
 </template>
 
@@ -52,32 +37,42 @@ import {
 
 import prettier from 'prettier/standalone'
 import prettierPlugins from 'prettier/parser-babylon'
-import JsonEditor from 'json-view'
-import highlight from 'highlight.js'
-import SplitPanels from 'splitpanes'
-import uuid from 'uuid/v4'
+import throttle from 'lodash/throttle'
+
+import JsonEditor from './JsonEditor'
+import TextEditor from './TextEditor'
 
 export default {
   name: 'EditorPanel',
-  components: { SplitPanels },
+
+  components: { TextEditor, JsonEditor },
+
   data() {
     return {
       message: '',
-      messageCode: '',
-      jsonEditor: null,
-      jsonEditorKey: uuid(),
     }
   },
+
+  computed: {
+    ...globalMapState(['session']),
+
+    disabled() {
+      const { session } = this
+      return !session
+    },
+
+    editor() {
+      const { session } = this
+      return (session ? session.editor : '') || 'text'
+    },
+  },
+
   watch: {
     message(cur) {
       const { session } = this
       if (session) {
         session.message = cur
       }
-      this.messageCode = cur
-        .split(/(?:\r)?\n/g)
-        .map((code) => `<code>${code}</code>`)
-        .join('<br/>')
     },
 
     disabled(cur) {
@@ -87,131 +82,76 @@ export default {
     },
 
     session(cur) {
-      this.destroyJsonEditor()
-      if (cur) {
-        this.message = cur.message || ''
-        if (cur.editor === 'json') {
-          this.jsonEdit()
-        }
-      } else {
-        this.message = ''
+      this.message = cur ? cur.message : ''
+      if (cur && cur.editor === 'text') {
+        this.$nextTick(() => {
+          this.$refs.textEditor.focus()
+        })
       }
     },
   },
 
-  computed: {
-    ...globalMapState(['session']),
-    //
-    disabled() {
-      const { session } = this
-      return !session
-    },
-    editor() {
-      const { session } = this
-      return (session ? session.editor : '') || 'text'
-    },
-  },
   methods: {
     ...globalMapActions(['send']),
-    //
+
     async commit() {
       await this.send(this.message)
       this.message = ''
     },
 
-    jsonPretty(type) {
-      try {
-        const editor = this.editor === 'text' ? 'textarea' : 'jsonCode'
-        this.message = prettier.format(this.message, {
-          parser: type === 'json' ? type : 'json5',
-          plugins: [prettierPlugins],
-          printWidth: Math.floor(this.$refs[editor].offsetWidth / 14),
-        })
-      } catch (e) {
-        this.$message.error('json格式不正确')
+    jsonPretty: throttle(
+      function() {
+        const editor = this.$refs[
+          this.editor === 'json' ? 'jsonEditor' : 'textEditor'
+        ]
+        this.message = editor.pretty()
+      },
+      200,
+      {
+        leading: true,
+        trailing: false,
       }
-    },
+    ),
 
-    jsonEdit() {
-      if (this.jsonEditor) {
-        this.destroyJsonEditor()
-        this.session.editor = 'text'
-        this.$nextTick(() => {
-          this.jsonPretty()
-          this.$refs.textarea.focus()
-        })
-        return
-      }
-      try {
-        const message = this.message
-        let obj = {}
-        if (typeof message === 'string' && message.trim()) {
-          const json = prettier.format(message, {
-            parser: 'json-stringify',
-            plugins: [prettierPlugins],
-          })
-          obj = JSON.parse(json)
-        } else {
-          this.message = '{}'
+    jsonEdit: throttle(
+      function() {
+        const { session } = this
+        if (!session) {
+          return
         }
-        this.session.editor = 'json'
-        this.destroyJsonEditor()
-        //
-        this.$nextTick(() => {
-          const editor = new JsonEditor(obj)
-          this.jsonEditor = editor
-          editor.expand(true)
-          this.$refs.jsonEditorContainer.appendChild(editor.dom)
-          //
-          editor.on('change', () => {
-            this.message = JSON.stringify(editor.value)
-            this.jsonPretty('json')
-            //
-            this.$nextTick(() => {
-              highlight.highlightBlock(this.$refs.jsonCode)
-            })
+        const { editor } = session
+        if (editor === 'json') {
+          session.editor = 'text'
+          this.$nextTick(() => {
+            this.jsonPretty()
+            this.$refs.textEditor.focus()
           })
-          //
-          editor.emit('change')
-        })
-      } catch (e) {
-        this.$message.error('json格式不正确')
+        } else {
+          const { message } = this
+          try {
+            this.message = message.trim()
+              ? prettier.format(message, {
+                  parser: 'json-stringify',
+                  plugins: [prettierPlugins],
+                })
+              : '{}'
+            session.editor = 'json'
+          } catch (e) {
+            this.$message.error('json格式不正确')
+          }
+        }
+      },
+      200,
+      {
+        leading: true,
+        trailing: false,
       }
-    },
-
-    destroyJsonEditor() {
-      if (this.jsonEditor) {
-        this.jsonEditor.destroy()
-        this.jsonEditor = null
-        this.jsonEditorKey = uuid()
-      }
-    },
+    ),
   },
 }
 </script>
 
-<style lang="less">
-.editor-box {
-  .splitpanes--vertical {
-    .splitpanes__splitter {
-      &:before {
-        position: absolute;
-        content: '';
-        left: -4px;
-        width: 8px;
-        top: 0;
-        height: 100%;
-        z-index: 1;
-      }
-    }
-  }
-}
-</style>
-
 <style lang="less" scoped>
-@import '~json-view/devtools.css';
-@import '~highlight.js/styles/default.css';
-
 .editor-box {
   height: 100%;
   position: relative;
@@ -222,6 +162,7 @@ export default {
 .toolbar {
   width: 100%;
   height: 40px;
+  line-height: normal;
   padding: 4px 16px;
   box-sizing: border-box;
   position: absolute;
@@ -233,7 +174,7 @@ export default {
 
   .iconfont {
     font-size: 24px;
-    margin-right: 12px;
+    margin-right: 14px;
     color: #666;
     cursor: pointer;
 
@@ -241,8 +182,12 @@ export default {
       color: #000;
     }
 
-    &.state-enabled {
+    &.active {
       color: #00e600;
+    }
+
+    &.icon-json {
+      font-size: 26px;
     }
   }
 }
@@ -252,54 +197,6 @@ export default {
   width: 100%;
   height: 100%;
   z-index: 10;
-}
-
-.json-editor-wrap {
-  width: 100%;
-  height: 100%;
-  border-top: 1px solid #e2e2e2;
-}
-
-.json-editor-scroll {
-  overflow: auto;
-  height: 100%;
-  width: 100%;
-}
-
-.json-editor {
-  padding: 16px 80px 80px 16px;
-  box-sizing: border-box;
-  &:after {
-    content: '';
-    display: block;
-    width: 0;
-    height: 0;
-    clear: both;
-  }
-}
-
-.highlight-code {
-  margin: 0;
-}
-
-.text-editor-wrap {
-  padding: 8px 0 16px 16px;
-  width: 100%;
-  height: 100%;
-}
-
-.text-editor {
-  outline: none;
-  box-sizing: border-box;
-  padding: 0;
-  resize: none;
-  border: none;
-  font-size: 14px;
-  width: 100%;
-  height: 100%;
-
-  &.disabled {
-    cursor: not-allowed;
-  }
+  cursor: not-allowed;
 }
 </style>

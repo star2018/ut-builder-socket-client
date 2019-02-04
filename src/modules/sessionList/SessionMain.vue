@@ -85,7 +85,6 @@ export default {
             messageTitle = '会话已连接'
             break
           case 'disconnect':
-            messageType = 'error'
             messageTitle = '会话已断开'
             break
           case 'data':
