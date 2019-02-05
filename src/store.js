@@ -1,15 +1,50 @@
 import io from 'socket.io-client'
 import uuid from 'uuid/v4'
+import timestamp from 'time-stamp'
+import lastIndexOf from 'lodash/findLastIndex'
+import prettier from 'prettier/standalone'
+import prettierPlugins from 'prettier/parser-babylon'
+
+function detectJson(code) {
+  code = typeof code === 'string' ? code.trim() : ''
+  if (code) {
+    try {
+      prettier.format(code, {
+        parser: 'json-stringify',
+        plugins: [prettierPlugins],
+      })
+      return true
+    } catch (e) {
+      //
+    }
+  }
+  return false
+}
+
+function stringify(code) {
+  try {
+    return prettier.format(code, {
+      parser: 'json-stringify',
+      plugins: [prettierPlugins],
+    })
+  } catch (e) {
+    return code
+  }
+}
 
 export default {
   //
   state: {
+    // socket连接对象
     socket: null,
+    // 当前会话信息
     session: null,
+    // 会话列表
     sessionList: [],
   },
 
   actions: {
+    //
     // 初始化socket
     async initSocket({ commit, getters, state }, server) {
       const { address, context } = Object.assign({}, server)
@@ -47,13 +82,14 @@ export default {
     // 发送数据
     async send({ state, getters, commit }, { token, data }) {
       const { socket } = state
+      const session = getters.getSessionByToken(token)
       let success = false
-      if (socket) {
+      if (session && !session.disconnected && socket) {
         try {
           await socket.send({
             type: 'data',
             token,
-            data,
+            data: stringify(data),
           })
           success = true
         } catch (e) {
@@ -109,11 +145,31 @@ export default {
 
     // 创建会话
     createSession(state, connection) {
+      const time = timestamp('HH:mm')
+      const { token } = connection
+      const openState = {
+        time,
+        timestamp: Date.now(),
+        key: uuid(),
+        content: `${time} - 已连接`,
+        from: 'state',
+      }
+      //
+      for (const session of state.sessionList) {
+        if (session.token === token) {
+          if (session.disconnected) {
+            session.disconnected = false
+            session.messages.push(openState)
+          }
+          return
+        }
+      }
+      //
       state.sessionList.push({
         ...connection,
         title: connection.path,
         message: '',
-        messages: [],
+        messages: [openState],
         editor: 'text',
         disconnected: false,
       })
@@ -121,10 +177,18 @@ export default {
 
     // 关闭会话
     closeSession(state, token) {
+      const time = timestamp('HH:mm')
       const { sessionList } = state
       for (const session of sessionList) {
         if (session.token === token) {
           session.disconnected = true
+          session.messages.push({
+            time,
+            timestamp: Date.now(),
+            key: uuid(),
+            content: `${time} - 已断开`,
+            from: 'state',
+          })
           break
         }
       }
@@ -144,17 +208,54 @@ export default {
 
     // 添加会话消息
     pushMessage(state, message) {
-      const { session, content, from } = Object.assign({}, message)
+      const now = Date.now()
+      const time = timestamp('HH:mm')
+      const { session, content, from, success } = Object.assign({}, message)
       if (
         session &&
         Array.isArray(session.messages) &&
-        /^(client|server)$/.test(from)
+        /^(client|server|state)$/.test(from)
       ) {
-        session.messages.push({
+        const { messages } = session
+
+        let appendState = false
+        const len = messages.length
+        const lastIndexOfState = lastIndexOf(
+          messages,
+          (item) => item.from === 'state'
+        )
+        const lastState = messages[lastIndexOfState] || null
+        if (!lastState) {
+          appendState = true
+        } else if (lastState && now - lastState.timestamp > 60 * 1000) {
+          if (now - lastState.timestamp > 50 * 60 * 1000) {
+            appendState = true
+          } else {
+            if (len - lastIndexOfState > 3) {
+              appendState = true
+            }
+          }
+        }
+
+        if (appendState) {
+          messages.push({
+            time,
+            timestamp: now,
+            key: uuid(),
+            content: time,
+            from: 'state',
+            success: true,
+          })
+        }
+
+        messages.push({
+          time,
           timestamp: Date.now(),
           key: uuid(),
           content,
           from,
+          success,
+          json: detectJson(content),
         })
       }
     },

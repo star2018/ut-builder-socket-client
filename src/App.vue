@@ -9,7 +9,9 @@
         center
         show-icon
       />
+    </transition>
 
+    <transition name="el-zoom-in-top">
       <el-alert
         class="alert"
         v-if="showConnectedAlert"
@@ -73,6 +75,7 @@ export default {
             this.showConnectedAlert = false
           }, 3000)
         }
+        this.disconnected = false
       } else {
         this.showConnectedAlert = false
         this.disconnected = !!pre
@@ -108,6 +111,15 @@ body {
   -webkit-font-smoothing: subpixel-antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+.el-notification__group {
+  overflow: hidden;
+  .notification-content-ellipsis {
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
 </style>
 
 <style lang="less" scoped>
@@ -124,5 +136,6 @@ body {
   z-index: 10;
   height: 50px;
   border-radius: 0;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
 }
 </style>

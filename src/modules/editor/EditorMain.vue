@@ -87,16 +87,23 @@ export default {
     ...globalMapActions(['send']),
 
     async commit() {
-      await this.send(this.message)
-      this.message = ''
+      const { session } = this
+      if (session) {
+        await this.send({ token: session.token, data: this.message })
+        this.message = ''
+      }
     },
 
     jsonPretty: throttle(
       function() {
-        const editor = this.$refs[
-          this.editor === 'json' ? 'jsonEditor' : 'textEditor'
-        ]
+        const editorType = this.editor === 'json' ? 'jsonEditor' : 'textEditor'
+        const editor = this.$refs[editorType]
         this.message = editor.pretty()
+        if (editorType === 'textEditor') {
+          this.$nextTick(() => {
+            this.$refs.textEditor.focus()
+          })
+        }
       },
       200,
       {
@@ -116,7 +123,6 @@ export default {
           session.editor = 'text'
           this.$nextTick(() => {
             this.jsonPretty()
-            this.$refs.textEditor.focus()
           })
         } else {
           const { message } = this
@@ -129,7 +135,13 @@ export default {
               : '{}'
             session.editor = 'json'
           } catch (e) {
-            this.$message.error('json格式不正确')
+            this.$notify.error({
+              title: 'JSON格式错误',
+              dangerouslyUseHTMLString: true,
+              message: `<pre class="notification-content-ellipsis" >${
+                e.message
+              }</pre>`,
+            })
           }
         }
       },

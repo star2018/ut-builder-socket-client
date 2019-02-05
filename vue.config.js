@@ -1,3 +1,17 @@
+//
+function getTemplateParameters() {
+  if (process.env.NODE_ENV === 'production') {
+    return {
+      address: '<%= address %>',
+      context: '<%= context %>',
+    }
+  }
+  return {
+    address: 'localhost:9080',
+    context: '/debug',
+  }
+}
+
 module.exports = {
   lintOnSave: false,
   pluginOptions: {
@@ -8,12 +22,11 @@ module.exports = {
     service: {
       html: {
         '.*': {
-          // 兼容模板参数
-          templateParameters: {
-            address: '192.168.1.109:9080',
-            context: '/debug',
-          },
+          templateParameters: getTemplateParameters(),
         },
+      },
+      copy: {
+        'src/assets/img/favicon.ico': 'dist/img',
       },
     },
   },

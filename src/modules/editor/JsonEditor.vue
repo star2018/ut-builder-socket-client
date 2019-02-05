@@ -9,22 +9,19 @@
       <div class="json-editor" ref="jsonEditorContainer"></div>
     </div>
 
-    <div
-      ref="codeBox"
-      class="json-code json-editor-scroll"
+    <code-panel
+      ref="codePanel"
+      class="json-editor-scroll"
       splitpanes-default="40"
-    >
-      <pre ref="code" class="highlight-code" v-html="codeFragment"></pre>
-    </div>
+      :code="value"
+    />
   </split-panels>
 </template>
 
 <script>
 import JsonView from 'json-view'
-import highlight from 'highlight.js'
-import prettier from 'prettier/standalone'
-import prettierPlugins from 'prettier/parser-babylon'
 import SplitPanels from 'splitpanes'
+import CodePanel from '../../components/CodePanel'
 
 export default {
   name: 'JsonEditor',
@@ -36,24 +33,7 @@ export default {
     },
   },
 
-  components: { SplitPanels },
-
-  data() {
-    return {
-      codeFragment: '',
-    }
-  },
-
-  watch: {
-    value(val) {
-      this.codeFragment = this.getCodeFragment(val)
-    },
-    codeFragment() {
-      this.$nextTick(() => {
-        highlight.highlightBlock(this.$refs.code)
-      })
-    },
-  },
+  components: { CodePanel, SplitPanels },
 
   mounted() {
     const { value } = this
@@ -63,43 +43,26 @@ export default {
       json = {}
     }
     const editor = new JsonView(json)
-    window.editor = editor
     this.jsonEditor = editor
     editor.expand(true)
     this.$refs.jsonEditorContainer.appendChild(editor.dom)
-    this.codeFragment = this.getCodeFragment(JSON.stringify(json))
     //
-    this.refresh()
+    this.refresh(true)
   },
 
   methods: {
-    getCodeFragment(code) {
-      return this.pretty(code)
-        .split(/(?:\r)?\n/g)
-        .map((code) => `<code>${code}</code>`)
-        .join('<br/>')
+    refresh(immediate) {
+      this.refreshTimer = setTimeout(
+        () => {
+          this.$emit('input', JSON.stringify(this.jsonEditor.value))
+          this.refresh()
+        },
+        immediate ? 0 : 300
+      )
     },
 
-    refresh() {
-      this.refreshTimer = setTimeout(() => {
-        this.$emit('input', JSON.stringify(this.jsonEditor.value))
-        this.refresh()
-      }, 300)
-    },
-
-    pretty(value = this.value) {
-      try {
-        value = value.trim()
-          ? prettier.format(value, {
-              parser: 'json',
-              plugins: [prettierPlugins],
-              printWidth: Math.floor(this.$refs.codeBox.clientWidth / 12),
-            })
-          : ''
-      } catch (e) {
-        this.$message.error('json格式不正确')
-      }
-      return value
+    pretty(value = this.value, ...args) {
+      return this.$refs.codePanel.pretty(value, ...args)
     },
   },
 
@@ -113,8 +76,8 @@ export default {
 </script>
 
 <style lang="less">
+@import '~splitpanes/dist/splitpanes.css';
 @import '~json-view/devtools.css';
-@import '~highlight.js/styles/default.css';
 
 .json-editor-wrap {
   &.splitpanes--vertical {
@@ -138,15 +101,6 @@ export default {
   width: 100%;
   height: 100%;
   border-top: 1px solid #e2e2e2;
-
-  .highlight-code {
-    margin: 0;
-    font-size: 12px;
-    overflow: visible;
-    float: left;
-    min-width: 100%;
-    box-sizing: border-box;
-  }
 }
 
 .json-editor-scroll {

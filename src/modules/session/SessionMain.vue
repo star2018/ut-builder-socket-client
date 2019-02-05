@@ -31,8 +31,11 @@ export default {
   },
 
   watch: {
-    socket(cur) {
-      this.attachEvent(cur)
+    socket(cur, pre) {
+      if (cur !== pre) {
+        this.detachEvent(pre)
+        this.attachEvent(cur)
+      }
     },
   },
 
@@ -44,31 +47,45 @@ export default {
       if (!socket) {
         return
       }
-      socket.on('message', (data) => {
-        const { type, token } = Object.assign({}, data)
-        const session = this.getSessionByToken(token)
-        if (!session) {
-          return
-        }
-        if (type === 'disconnect') {
-          this.$notify.info({
-            title: '会话已断开',
-            message: session.title,
-          })
-        } else if (type === 'connection') {
-          this.showSessionNotify(
-            { type: 'success', title: '会话已连接' },
-            session
-          )
-        } else if (type === 'data') {
-          if (session !== this.session) {
+      socket.on(
+        'message',
+        (this.messageHandler = (data) => {
+          const { type, token } = Object.assign({}, data)
+          const session = this.getSessionByToken(token)
+          if (!session) {
+            return
+          }
+          if (type === 'disconnect') {
+            this.$notify.info({
+              title: '会话已断开',
+              message: session.title,
+            })
+          } else if (type === 'connection') {
             this.showSessionNotify(
-              { type: 'info', title: '收到新消息' },
+              { type: 'success', title: '会话已连接' },
               session
             )
+          } else if (type === 'data') {
+            if (session !== this.session) {
+              this.showSessionNotify(
+                { type: 'info', title: '收到新消息' },
+                session
+              )
+            }
           }
-        }
-      })
+        })
+      )
+    },
+
+    detachEvent(socket) {
+      if (!socket) {
+        return
+      }
+      const { messageHandler } = this
+      if (messageHandler) {
+        socket.off('message', messageHandler)
+        this.messageHandler = null
+      }
     },
 
     showSessionNotify({ type, title }, session) {
@@ -128,7 +145,7 @@ export default {
 
 <style lang="less" scoped>
 .session-panel {
-  background-color: #f5f5f5;
+  background-color: #f0f0f0;
   font-size: 14px;
   height: 100%;
   display: flex;
@@ -136,6 +153,7 @@ export default {
 }
 
 .message-list {
+  width: 100%;
   flex: 1 1 auto;
 }
 

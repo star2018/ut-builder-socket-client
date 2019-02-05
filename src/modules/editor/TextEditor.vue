@@ -46,7 +46,7 @@ export default {
   },
 
   methods: {
-    pretty(value = this.value) {
+    pretty(value = this.value, silent) {
       try {
         value = value.trim()
           ? prettier.format(value, {
@@ -56,7 +56,15 @@ export default {
             })
           : ''
       } catch (e) {
-        this.$message.error('json格式不正确')
+        if (!silent) {
+          this.$notify.error({
+            title: 'JSON格式化失败',
+            dangerouslyUseHTMLString: true,
+            message: `<pre class="notification-content-ellipsis">${
+              e.message
+            }</pre>`,
+          })
+        }
       }
       return value
     },
@@ -73,6 +81,7 @@ export default {
   padding: 8px 0 16px 16px;
   width: 100%;
   height: 100%;
+  box-sizing: border-box;
 }
 
 .text-editor {
