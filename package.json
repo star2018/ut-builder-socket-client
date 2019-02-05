@@ -1,6 +1,6 @@
 {
   "name": "ut-builder-socket-client",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "scripts": {
     "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",
@@ -33,6 +33,10 @@
     "vue-cli-plugin-ut-builder": "^1.5.0",
     "vue-template-compiler": "^2.5.21"
   },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/star2018/ut-builder-socket-client.git"
+  },
   "lint-staged": {
     "*.js": [
       "vue-cli-service lint",
@@ -42,5 +46,6 @@
       "vue-cli-service lint",
       "git add"
     ]
-  }
+  },
+  "license": "MIT"
 }
