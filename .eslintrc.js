@@ -12,6 +12,6 @@ module.exports = {
     parser: 'babel-eslint',
   },
   globals: {
-    MOCK_CONTEXT: true,
+    MOCK_SERVER: true,
   },
 }

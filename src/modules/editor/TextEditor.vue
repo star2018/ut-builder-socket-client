@@ -19,6 +19,7 @@ import prettierPlugins from 'prettier/parser-babylon'
 
 export default {
   name: 'TextEditor',
+  inheritAttrs: false,
   props: {
     value: {
       type: String,

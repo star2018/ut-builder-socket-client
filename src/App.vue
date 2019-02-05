@@ -4,11 +4,12 @@
       <el-alert
         class="alert"
         v-if="disconnected"
-        title="Mock服务已被关闭或重启，请刷新当前页面"
+        title="Mock服务已关闭或重启，请刷新当前页面"
         type="error"
         center
         show-icon
       />
+
       <el-alert
         class="alert"
         v-if="showConnectedAlert"
@@ -18,9 +19,10 @@
         show-icon
       />
     </transition>
+
     <split-layout>
       <session-list slot="left" />
-      <dialog-panel slot="right-top" />
+      <session-panel slot="right-top" />
       <editor-panel slot="right-bottom" />
     </split-layout>
   </div>
@@ -28,12 +30,12 @@
 
 <script>
 import Vue from 'vue'
-import { mapMutations, mapState } from 'vuex'
+import { mapState, mapActions } from 'vuex'
 import ElementUI from 'element-ui'
 
 import SplitLayout from './components/SplitLayout'
-import SessionList from './modules/sessionList/SessionMain'
-import DialogPanel from './modules/dialog/DialogMain'
+import SessionList from './modules/sessionList/SessionListMain'
+import SessionPanel from './modules/session/SessionMain'
 import EditorPanel from './modules/editor/EditorMain'
 
 Vue.use(ElementUI)
@@ -47,36 +49,43 @@ export default {
   components: {
     SplitLayout,
     SessionList,
-    DialogPanel,
+    SessionPanel,
     EditorPanel,
   },
+
   data() {
     return {
       disconnected: false,
       showConnectedAlert: false,
     }
   },
+
   computed: {
     ...mapState(['socket']),
   },
+
   watch: {
     socket(cur, pre) {
-      if (cur && !pre) {
-        this.showConnectedAlert = true
-        setTimeout(() => {
-          this.showConnectedAlert = false
-        }, 2000)
-      }
-      if (!cur && pre) {
-        this.disconnected = true
+      if (cur) {
+        if (!pre) {
+          this.showConnectedAlert = true
+          setTimeout(() => {
+            this.showConnectedAlert = false
+          }, 3000)
+        }
+      } else {
+        this.showConnectedAlert = false
+        this.disconnected = !!pre
       }
     },
   },
+
   created() {
-    this.setSocket()
+    this.initSocket(MOCK_SERVER)
   },
+
   methods: {
-    ...mapMutations(['setSocket']),
+    ...mapActions(['initSocket']),
   },
 }
 </script>
@@ -94,10 +103,8 @@ body {
 }
 
 body {
-  font: 12px/1.5 'Chinese Quote', -apple-system, BlinkMacSystemFont, 'Segoe UI',
-    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue',
-    Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-    'Segoe UI Symbol';
+  font: 12px/1.5 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
   -webkit-font-smoothing: subpixel-antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

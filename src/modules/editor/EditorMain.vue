@@ -1,19 +1,10 @@
 <template>
   <div class="editor-box">
-    <div class="toolbar">
-      <i
-        class="iconfont icon-json"
-        :class="{ active: editor === 'json' }"
-        title="json编辑模式"
-        @click="jsonEdit"
-      ></i>
-      <i
-        class="iconfont icon-format"
-        title="json格式化"
-        @click="jsonPretty"
-      ></i>
-      <div v-if="!session" class="toolbar-mask"></div>
-    </div>
+    <tool-bar
+      :session="session"
+      @json-edit="jsonEdit"
+      @json-pretty="jsonPretty"
+    />
 
     <template v-if="editor === 'json'">
       <json-editor :key="session.token" ref="jsonEditor" v-model="message" />
@@ -41,11 +32,12 @@ import throttle from 'lodash/throttle'
 
 import JsonEditor from './JsonEditor'
 import TextEditor from './TextEditor'
+import ToolBar from './ToolBar'
 
 export default {
   name: 'EditorPanel',
 
-  components: { TextEditor, JsonEditor },
+  components: { ToolBar, TextEditor, JsonEditor },
 
   data() {
     return {
@@ -157,46 +149,5 @@ export default {
   position: relative;
   padding-top: 40px;
   box-sizing: border-box;
-}
-
-.toolbar {
-  width: 100%;
-  height: 40px;
-  line-height: normal;
-  padding: 4px 16px;
-  box-sizing: border-box;
-  position: absolute;
-  left: 0;
-  top: 0;
-  display: flex;
-  align-items: center;
-  flex-wrap: nowrap;
-
-  .iconfont {
-    font-size: 24px;
-    margin-right: 14px;
-    color: #666;
-    cursor: pointer;
-
-    &:hover {
-      color: #000;
-    }
-
-    &.active {
-      color: #00e600;
-    }
-
-    &.icon-json {
-      font-size: 26px;
-    }
-  }
-}
-
-.toolbar-mask {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  z-index: 10;
-  cursor: not-allowed;
 }
 </style>
