@@ -4,6 +4,8 @@
       :session="session"
       @json-edit="jsonEdit"
       @json-pretty="jsonPretty"
+      @clear="clearMessageList"
+      @show-history="showHistory"
     />
 
     <template v-if="editor === 'json'">
@@ -17,6 +19,13 @@
       :disabled="!session"
       @keyup.ctrl.enter="commit"
     />
+
+    <history-dialog
+      @remove="removeHistory"
+      @remove-all="removeAllHistory"
+      :visible.sync="visible.history"
+      :data="history"
+    />
   </div>
 </template>
 
@@ -24,29 +33,36 @@
 import {
   mapState as globalMapState,
   mapActions as globalMapActions,
+  mapMutations as globalMapMutations,
+  mapGetters as globalMapGetters,
 } from 'vuex'
 
-import prettier from 'prettier/standalone'
-import prettierPlugins from 'prettier/parser-babylon'
+import JSON5 from 'json5'
 import throttle from 'lodash/throttle'
 
 import JsonEditor from './JsonEditor'
 import TextEditor from './TextEditor'
 import ToolBar from './ToolBar'
+import HistoryDialog from './HistoryDialog'
 
 export default {
   name: 'EditorPanel',
 
-  components: { ToolBar, TextEditor, JsonEditor },
+  components: { HistoryDialog, ToolBar, TextEditor, JsonEditor },
 
   data() {
     return {
       message: '',
+      history: [],
+      visible: {
+        history: false,
+      },
     }
   },
 
   computed: {
     ...globalMapState(['session']),
+    ...globalMapGetters(['getHistory']),
 
     disabled() {
       const { session } = this
@@ -85,11 +101,18 @@ export default {
 
   methods: {
     ...globalMapActions(['send']),
+    ...globalMapMutations(['clearMessages', 'clearHistory', 'clearAllHistory']),
 
     async commit() {
-      const { session } = this
-      if (session) {
-        await this.send({ token: session.token, data: this.message })
+      const { session, message } = this
+      if (session && message.trim()) {
+        let data = null
+        try {
+          data = JSON5.parse(message)
+        } catch (e) {
+          data = message
+        }
+        await this.send({ token: session.token, data })
         this.message = ''
       }
     },
@@ -127,20 +150,17 @@ export default {
         } else {
           const { message } = this
           try {
-            this.message = message.trim()
-              ? prettier.format(message, {
-                  parser: 'json-stringify',
-                  plugins: [prettierPlugins],
-                })
-              : '{}'
+            const json = message.trim() ? JSON5.parse(message) : {}
+            this.message = JSON.stringify(json)
             session.editor = 'json'
           } catch (e) {
             this.$notify.error({
               title: 'JSON格式错误',
               dangerouslyUseHTMLString: true,
-              message: `<pre class="notification-content-ellipsis" >${
-                e.message
-              }</pre>`,
+              message: `<div class="text-word-break-wrap">${e.message.replace(
+                /^JSON5:\s*/,
+                ''
+              )}</div>`,
             })
           }
         }
@@ -151,9 +171,53 @@ export default {
         trailing: false,
       }
     ),
+
+    clearMessageList() {
+      const { session } = this
+      if (session) {
+        this.clearMessages(session.token)
+      }
+    },
+
+    showHistory() {
+      const { session } = this
+      if (session) {
+        const { path } = session
+        this.history = this.getHistory(path).history
+        this.visible.history = true
+      }
+    },
+
+    removeHistory(items) {
+      const { session } = this
+      if (session) {
+        const { path } = session
+        this.clearHistory({
+          path,
+          items,
+        })
+        this.showHistory()
+      }
+    },
+
+    removeAllHistory() {
+      const { session } = this
+      if (session) {
+        const { path } = session
+        this.clearAllHistory(path)
+        this.showHistory()
+      }
+    },
   },
 }
 </script>
+
+<style>
+.text-word-break-wrap {
+  word-break: break-all;
+  white-space: normal;
+}
+</style>
 
 <style lang="less" scoped>
 .editor-box {

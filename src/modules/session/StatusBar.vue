@@ -4,12 +4,14 @@
       <div class="info-bar">
         <span
           class="connect-state"
-          :class="{ disconnected: session.disconnected }"
-          :title="session.disconnected ? '已断开' : '已连接'"
+          :class="{ disconnected }"
+          :title="disconnected ? '已断开' : '已连接'"
         ></span>
-        <span>{{ session.title }}</span>
+        <span class="duration">{{ duration }}</span>
       </div>
-
+      <div class="title-bar">
+        <span class="title">{{ session.title }}</span>
+      </div>
       <div class="button-bar">
         <i
           class="iconfont icon-close"
@@ -30,6 +32,81 @@ export default {
       default: null,
     },
   },
+
+  data() {
+    return {
+      duration: '',
+    }
+  },
+
+  computed: {
+    disconnected() {
+      const { session } = this
+      return session ? session.disconnected : true
+    },
+  },
+
+  watch: {
+    session(cur) {
+      if (!cur) {
+        this.clearTimer()
+      } else {
+        this.setTimer()
+      }
+    },
+
+    disconnected(cur) {
+      if (cur) {
+        this.clearTimer()
+      } else {
+        this.setTimer()
+      }
+    },
+  },
+
+  created() {
+    const { session } = this
+    if (session && !session.disconnected) {
+      this.setTimer()
+    }
+  },
+
+  beforeDestroy() {
+    this.clearTimer()
+  },
+
+  methods: {
+    setTimer() {
+      this.clearTimer()
+      this.timer = setInterval(() => {
+        this.duration = this.getDuration()
+      }, 1000)
+    },
+
+    clearTimer() {
+      clearInterval(this.timer)
+      if (this.session) {
+        this.duration = this.getDuration()
+      }
+    },
+
+    getDuration() {
+      const { session } = this
+      if (session) {
+        const { timestamp, closeTimestamp } = session
+        const duration = (closeTimestamp || Date.now()) - timestamp
+        const hours = Math.floor(duration / (60 * 60 * 1000))
+        const minutes = Math.floor((duration % (60 * 60 * 1000)) / (60 * 1000))
+        const seconds = Math.floor(
+          (duration - hours * 60 * 60 * 1000 - minutes * 60 * 1000) / 1000
+        )
+        return `${
+          hours ? `${hours}`.padStart(2, '0') + ':' : ''
+        }${`${minutes}`.padStart(2, '0')}:${`${seconds}`.padStart(2, '0')}`
+      }
+      return ''
+    },
+  },
 }
 </script>
 
@@ -41,12 +118,12 @@ export default {
   align-items: center;
   justify-content: space-between;
   flex-wrap: nowrap;
-  border-bottom: 1px solid #e2e2e2;
+  border-bottom: 1px solid #dcdfe6;
   box-sizing: border-box;
 }
 
 .info-bar {
-  flex: 1 1 auto;
+  flex: none;
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
@@ -77,17 +154,40 @@ export default {
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
+  justify-content: flex-end;
   margin-left: 8px;
 
   .iconfont {
     cursor: pointer;
-    font-size: 24px;
-    color: #666;
+    font-size: 26px;
+    color: #606266;
     margin-left: 12px;
 
     &:hover {
-      color: #000;
+      color: #303133;
     }
   }
+
+  .duration {
+    margin-right: 4px;
+  }
+}
+
+.title-bar {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.info-bar,
+.button-bar {
+  min-width: 120px;
 }
 </style>

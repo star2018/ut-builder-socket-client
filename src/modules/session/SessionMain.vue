@@ -113,14 +113,18 @@ export default {
     },
 
     remove() {
-      const { session } = this
-      const { token, title } = session
-      this.close(token)
-      this.removeSession(token)
-      this.setSession(null)
-      this.$notify.info({
-        title: '会话已关闭',
-        message: title,
+      this.$confirm('确定要关闭当前会话吗？', '关闭', {
+        type: 'warning',
+      }).then(() => {
+        const { session } = this
+        const { token, title } = session
+        this.close(token)
+        this.removeSession(token)
+        this.setSession(null)
+        this.$notify.info({
+          title: '会话已关闭',
+          message: title,
+        })
       })
     },
   },

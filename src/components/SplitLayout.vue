@@ -70,7 +70,7 @@ export default {
 
     .splitpanes__splitter {
       position: relative;
-      background-color: #e2e2e2;
+      background-color: #dcdfe6;
 
       &:before {
         position: absolute;

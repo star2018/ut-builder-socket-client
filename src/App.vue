@@ -110,6 +110,7 @@ body {
     'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
   -webkit-font-smoothing: subpixel-antialiased;
   -moz-osx-font-smoothing: grayscale;
+  color: #303133;
 }
 
 .el-notification__group {

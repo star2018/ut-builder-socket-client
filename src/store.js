@@ -1,35 +1,39 @@
 import io from 'socket.io-client'
 import uuid from 'uuid/v4'
+import hash from 'hash.js'
 import timestamp from 'time-stamp'
 import lastIndexOf from 'lodash/findLastIndex'
-import prettier from 'prettier/standalone'
-import prettierPlugins from 'prettier/parser-babylon'
+import isPlainObject from 'lodash/isPlainObject'
 
-function detectJson(code) {
-  code = typeof code === 'string' ? code.trim() : ''
-  if (code) {
-    try {
-      prettier.format(code, {
-        parser: 'json-stringify',
-        plugins: [prettierPlugins],
-      })
-      return true
-    } catch (e) {
-      //
-    }
+function detectType(code) {
+  if (isPlainObject(code)) {
+    return 'json'
   }
-  return false
+  if (typeof code !== 'object') {
+    return 'text'
+  }
+  return 'object'
 }
 
 function stringify(code) {
   try {
-    return prettier.format(code, {
-      parser: 'json-stringify',
-      plugins: [prettierPlugins],
-    })
+    if (isPlainObject(code)) {
+      return JSON.stringify(code)
+    }
+    if (typeof code !== 'object') {
+      return code
+    }
   } catch (e) {
-    return code
+    //
   }
+  return `${code}`
+}
+
+function getHistoryKey(path) {
+  return hash
+    .sha1()
+    .update(`ut-builder-socket-client-history-${path}`)
+    .digest('hex')
 }
 
 export default {
@@ -63,9 +67,21 @@ export default {
         commit('setSocket', null)
       })
       socket.on('message', (message) => {
-        const { type, ...connection } = Object.assign({}, message)
+        const { type, messages, ...connection } = Object.assign({}, message)
         if (type === 'connection') {
           commit('createSession', connection)
+          if (Array.isArray(messages)) {
+            const session = getters.getSessionByToken(connection.token)
+            for (const { content, timestamp, from } of messages) {
+              commit('pushMessage', {
+                session,
+                content,
+                timestamp,
+                from,
+                success: true,
+              })
+            }
+          }
         } else if (type === 'disconnect') {
           commit('closeSession', connection.token)
         } else if (type === 'data') {
@@ -84,14 +100,34 @@ export default {
       const { socket } = state
       const session = getters.getSessionByToken(token)
       let success = false
+      const type = detectType(data)
+      const content = stringify(data)
       if (session && !session.disconnected && socket) {
         try {
           await socket.send({
-            type: 'data',
             token,
-            data: stringify(data),
+            type: 'data',
+            data: content,
           })
           success = true
+          //
+          const { path } = session
+          const { key, history } = getters.getHistory(path)
+          history.unshift({
+            type,
+            content,
+            timestamp: Date.now(),
+          })
+          localStorage.setItem(
+            key,
+            JSON.stringify(
+              history.map(({ timestamp, type, content }) => ({
+                tp: type,
+                ts: timestamp,
+                c: content,
+              }))
+            )
+          )
         } catch (e) {
           //
         }
@@ -99,8 +135,9 @@ export default {
       commit('pushMessage', {
         success,
         from: 'client',
-        content: data,
-        session: getters.getSessionByToken(token),
+        content,
+        session,
+        type,
       })
     },
 
@@ -153,12 +190,14 @@ export default {
         key: uuid(),
         content: `${time} - 已连接`,
         from: 'state',
+        type: 'text',
       }
       //
       for (const session of state.sessionList) {
         if (session.token === token) {
           if (session.disconnected) {
             session.disconnected = false
+            delete session.closeTimestamp
             session.messages.push(openState)
           }
           return
@@ -182,12 +221,14 @@ export default {
       for (const session of sessionList) {
         if (session.token === token) {
           session.disconnected = true
+          session.closeTimestamp = Date.now()
           session.messages.push({
             time,
             timestamp: Date.now(),
             key: uuid(),
             content: `${time} - 已断开`,
             from: 'state',
+            type: 'text',
           })
           break
         }
@@ -208,14 +249,16 @@ export default {
 
     // 添加会话消息
     pushMessage(state, message) {
-      const now = Date.now()
-      const time = timestamp('HH:mm')
-      const { session, content, from, success } = Object.assign({}, message)
+      message = Object.assign({}, message)
+      const now = message.timestamp || Date.now()
+      const time = timestamp('HH:mm', new Date(now))
+      const { from, session } = message
       if (
         session &&
         Array.isArray(session.messages) &&
         /^(client|server|state)$/.test(from)
       ) {
+        const { content, success, type } = message
         const { messages } = session
 
         let appendState = false
@@ -225,18 +268,11 @@ export default {
           (item) => item.from === 'state'
         )
         const lastState = messages[lastIndexOfState] || null
-        if (!lastState) {
+        if (!lastState || now - lastState.timestamp > 50 * 60 * 1000) {
           appendState = true
         } else if (lastState && now - lastState.timestamp > 60 * 1000) {
-          if (now - lastState.timestamp > 50 * 60 * 1000) {
-            appendState = true
-          } else {
-            if (len - lastIndexOfState > 3) {
-              appendState = true
-            }
-          }
+          appendState = len - lastIndexOfState > 3
         }
-
         if (appendState) {
           messages.push({
             time,
@@ -245,19 +281,73 @@ export default {
             content: time,
             from: 'state',
             success: true,
+            type: 'text',
           })
         }
 
         messages.push({
           time,
-          timestamp: Date.now(),
+          timestamp: now,
           key: uuid(),
           content,
+          type,
           from,
           success,
-          json: detectJson(content),
+          collapsed: true,
+          collapsible: false,
         })
       }
+    },
+
+    // 清除消息
+    clearMessages(state, token) {
+      const { sessionList, socket } = state
+      for (let i = 0; i < sessionList.length; i++) {
+        const session = sessionList[i]
+        if (session.token === token) {
+          const now = Date.now()
+          const time = timestamp('HH:mm')
+          const first = session.messages[0]
+          session.messages = first ? [first] : []
+          session.messages.push({
+            time,
+            timestamp: now,
+            key: uuid(),
+            content: `${time} - 消息已清空`,
+            from: 'state',
+            success: true,
+            type: 'text',
+          })
+          break
+        }
+      }
+      try {
+        if (socket) {
+          socket.send({
+            type: 'clear-messages',
+            token,
+          })
+        }
+      } catch (e) {
+        //
+      }
+    },
+
+    // 清空指定的历史记录
+    clearHistory(state, payload) {
+      const { path, items } = payload
+      const key = getHistoryKey(path)
+      const value = localStorage.getItem(key)
+      const histories = value ? JSON.parse(value) : []
+      const updated = histories.filter(
+        ({ ts }) => !items.some((item) => item.timestamp === ts)
+      )
+      localStorage.setItem(key, JSON.stringify(updated))
+    },
+
+    // 清空所有历史记录
+    clearAllHistory(state, path) {
+      localStorage.removeItem(getHistoryKey(path))
     },
   },
 
@@ -268,6 +358,20 @@ export default {
         if (session.token === token) {
           return session
         }
+      }
+    },
+
+    // 获取历史消息记录
+    getHistory: () => (path) => {
+      const key = getHistoryKey(path)
+      const value = localStorage.getItem(key)
+      return {
+        key,
+        history: (value ? JSON.parse(value) : []).map(({ tp, ts, c }) => ({
+          type: tp,
+          timestamp: ts,
+          content: c,
+        })),
       }
     },
   },

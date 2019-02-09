@@ -1,41 +1,67 @@
 <template>
-  <ul ref="messageList" class="message-list">
-    <li class="item" v-for="item of messages" :key="item.key">
+  <lazy-list
+    ref="messageList"
+    class="message-list"
+    key-prop="key"
+    reverse
+    :data="messages"
+  >
+    <div
+      class="item"
+      slot-scope="{ item }"
+      :class="{ collapsed: item.collapsed }"
+    >
       <div v-if="item.from === 'state'" class="state">
         <div class="content">
           <span>{{ item.content }}</span>
         </div>
       </div>
 
-      <div v-else :class="{ [item.from]: true, code: item.json }">
+      <div v-else :class="{ [item.from]: true, code: item.type === 'json' }">
         <i class="avatar">{{ item.from === 'client' ? 'M' : 'S' }}</i>
 
         <div class="content">
           <code-panel
-            v-if="item.json"
+            v-if="item.type === 'json'"
             class="code-panel"
             :code="item.content"
+            :show-collapse-button="false"
+            :collapsed.sync="item.collapsed"
+            :collapsible.sync="item.collapsible"
           />
 
           <span v-else>{{ item.content }}</span>
 
-          <i
-            v-if="!item.success"
-            :title="item.from === 'server' ? '接收失败' : '发送失败'"
-            class="iconfont icon-tips"
-          ></i>
+          <div class="status">
+            <i
+              v-if="!item.success"
+              :title="item.from === 'server' ? '接收失败' : '发送失败'"
+              class="iconfont icon-tips"
+            ></i>
+            <i
+              v-if="item.collapsible"
+              class="iconfont"
+              :title="item.collapsed ? '展开' : '折叠'"
+              :class="{
+                'icon-expand': item.collapsed,
+                'icon-collapse': !item.collapsed,
+              }"
+              @click="item.collapsed = !item.collapsed"
+            ></i>
+          </div>
         </div>
       </div>
-    </li>
-  </ul>
+    </div>
+  </lazy-list>
 </template>
 
 <script>
 import CodePanel from '../../components/CodePanel'
+import LazyList from '../../components/LazyList'
 
 export default {
   name: 'MessageList',
-  components: { CodePanel },
+  components: { LazyList, CodePanel },
   props: {
     session: {
       type: Object,
@@ -53,8 +79,7 @@ export default {
   watch: {
     messages() {
       this.$nextTick(() => {
-        const list = this.$refs.messageList
-        list.scrollTop = list.scrollHeight
+        this.$refs.messageList.scrollToBottom()
       })
     },
   },
@@ -66,8 +91,20 @@ export default {
   .server,
   .client {
     .code-panel {
-      .highlight-code {
+      .code-wrap {
         background-color: #fff;
+      }
+    }
+  }
+
+  .item {
+    &.collapsed {
+      .code-panel {
+        .code-wrap {
+          &:after {
+            background-color: #fff;
+          }
+        }
       }
     }
   }
@@ -76,13 +113,16 @@ export default {
 
 <style lang="less" scoped>
 .message-list {
-  margin: 0;
   padding: 16px;
   box-sizing: border-box;
-  list-style: none;
   overflow-y: auto;
+  overflow-x: visible;
 
   .item {
+    .code-panel {
+      z-index: 1;
+    }
+
     &:after {
       content: '';
       display: block;
@@ -163,13 +203,35 @@ export default {
       border-right-color: #fff;
     }
 
-    .icon-tips {
-      font-size: 16px;
-      line-height: 1em;
-      color: #ff0000;
+    .status {
       position: absolute;
       right: -20px;
-      top: 16px;
+      top: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-around;
+      height: 48px;
+
+      .iconfont {
+        line-height: 1em;
+        font-size: 16px;
+        margin: 2px 0;
+      }
+
+      .icon-tips {
+        color: #ff0000;
+      }
+
+      .icon-expand,
+      .icon-collapse {
+        cursor: pointer;
+        color: #666;
+
+        &:hover {
+          color: #000;
+        }
+      }
     }
   }
 }
@@ -193,7 +255,7 @@ export default {
       border-left-color: #92e648;
     }
 
-    .icon-tips {
+    .status {
       right: auto;
       left: -20px;
     }
@@ -203,12 +265,10 @@ export default {
 .server,
 .client {
   &.code {
-    max-width: 80%;
-
     .content {
       padding: 0;
       background-color: #fff;
-      border: 1px solid #e2e2e2;
+      /*border: 1px solid #e2e2e2;*/
 
       .code-panel {
         overflow: auto;

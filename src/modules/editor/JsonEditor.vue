@@ -1,5 +1,5 @@
 <template>
-  <split-panels class="json-editor-wrap" watch-slots>
+  <split-panels class="json-editor-wrap" @resized="handleResize" watch-slots>
     <div
       class="json-editor-scroll"
       splitpanes-default="60"
@@ -14,6 +14,7 @@
       class="json-editor-scroll"
       splitpanes-default="40"
       :code="value"
+      :show-collapse-button="false"
     />
   </split-panels>
 </template>
@@ -21,6 +22,7 @@
 <script>
 import JsonView from 'json-view'
 import SplitPanels from 'splitpanes'
+
 import CodePanel from '../../components/CodePanel'
 
 export default {
@@ -64,10 +66,14 @@ export default {
     pretty(value = this.value, ...args) {
       return this.$refs.codePanel.pretty(value, ...args)
     },
+
+    handleResize() {
+      this.$emit('input', this.pretty(this.value, true))
+    },
   },
 
   beforeDestroy() {
-    clearInterval(this.refreshTimer)
+    clearTimeout(this.refreshTimer)
     if (this.jsonEditor) {
       this.jsonEditor.destroy()
     }
@@ -82,6 +88,7 @@ export default {
 .json-editor-wrap {
   &.splitpanes--vertical {
     .splitpanes__splitter {
+      background-color: #e4e7ed;
       &:before {
         position: absolute;
         content: '';
@@ -100,7 +107,7 @@ export default {
 .json-editor-wrap {
   width: 100%;
   height: 100%;
-  border-top: 1px solid #e2e2e2;
+  border-top: 1px solid #e4e7ed;
 }
 
 .json-editor-scroll {
