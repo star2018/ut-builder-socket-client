@@ -273,7 +273,6 @@ export default {
       .code-panel {
         overflow: auto;
         border-radius: 6px;
-        padding: 8px;
         max-height: 400px;
       }
     }

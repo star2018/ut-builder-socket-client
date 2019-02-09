@@ -4,12 +4,26 @@ import hash from 'hash.js'
 import timestamp from 'time-stamp'
 import lastIndexOf from 'lodash/findLastIndex'
 import isPlainObject from 'lodash/isPlainObject'
+import JSON5 from 'json5'
+
+function parse(code) {
+  let obj
+  try {
+    obj = JSON5.parse(code)
+  } catch (e) {
+    obj = code
+  }
+  return obj
+}
 
 function detectType(code) {
   if (isPlainObject(code)) {
     return 'json'
   }
   if (typeof code !== 'object') {
+    if (isPlainObject(parse(code))) {
+      return 'json'
+    }
     return 'text'
   }
   return 'object'
@@ -72,22 +86,38 @@ export default {
           commit('createSession', connection)
           if (Array.isArray(messages)) {
             const session = getters.getSessionByToken(connection.token)
-            for (const { content, timestamp, from } of messages) {
+            for (let i = 0; i < messages.length; i++) {
+              const { content, timestamp: ts, from } = messages[i]
+              if (i === 0 && ts) {
+                const time = timestamp('HH:mm', new Date(ts))
+                commit('pushMessage', {
+                  time,
+                  session,
+                  timestamp: ts,
+                  key: uuid(),
+                  content: `${time}`,
+                  from: 'state',
+                  type: 'text',
+                })
+              }
               commit('pushMessage', {
+                type: detectType(content),
+                success: true,
+                timestamp: ts,
                 session,
                 content,
-                timestamp,
                 from,
-                success: true,
               })
             }
           }
         } else if (type === 'disconnect') {
           commit('closeSession', connection.token)
         } else if (type === 'data') {
+          const { data, token } = connection
           commit('pushMessage', {
-            session: getters.getSessionByToken(connection.token),
-            content: connection.data,
+            session: getters.getSessionByToken(token),
+            type: detectType(data),
+            content: data,
             from: 'server',
             success: true,
           })

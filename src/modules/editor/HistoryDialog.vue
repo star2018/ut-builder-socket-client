@@ -253,7 +253,7 @@ export default {
     align-items: center;
     font-size: 12px;
     padding: 4px 0;
-    border-bottom: 1px solid #dcdfe6;
+    border-bottom: 1px solid #e4e7ed;
     margin-top: 16px;
 
     .el-button {
@@ -265,6 +265,12 @@ export default {
 
 .history-list {
   color: #262626;
+
+  &.checking {
+    .content-main {
+      margin-left: 22px;
+    }
+  }
 }
 
 .history-item {
@@ -285,22 +291,20 @@ export default {
   .content {
     overflow: visible;
     margin-bottom: 8px;
-    display: flex;
-    align-items: center;
-    flex-wrap: nowrap;
+    position: relative;
 
     .checkbox {
-      margin-right: 8px;
-      flex: none;
-    }
-
-    .content-main {
-      flex: 1 1 auto;
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 10;
+      line-height: 1em;
     }
 
     .text {
       position: relative;
-      padding: 6px;
+      padding: 8px;
       overflow: visible;
       white-space: normal;
       word-break: break-all;

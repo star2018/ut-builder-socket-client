@@ -198,7 +198,7 @@ export default {
         background-color: #f0f0f0;
         content: '...';
         position: absolute;
-        padding: 0 20px 6px;
+        padding: 0 20px 8px;
         width: 100%;
         height: 2.2em;
         left: 0;
@@ -224,7 +224,7 @@ export default {
   min-width: 100%;
   box-sizing: border-box;
   position: relative;
-  padding: 6px;
+  padding: 8px;
   overflow: visible;
   background-color: #f0f0f0;
   font-size: 0;
