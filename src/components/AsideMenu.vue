@@ -47,9 +47,6 @@ export default {
 
 <style lang="less">
 .aside-menu {
-  overflow-y: auto;
-  padding: 16px 0;
-
   &::-webkit-scrollbar {
     width: 0;
   }
@@ -117,5 +114,12 @@ export default {
       color: #fff;
     }
   }
+}
+</style>
+
+<style lang="less" scoped>
+.aside-menu {
+  overflow-y: auto;
+  padding: 16px 0;
 }
 </style>

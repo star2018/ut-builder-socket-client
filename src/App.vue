@@ -134,7 +134,7 @@ body {
   left: 0;
   top: 0;
   width: 100%;
-  z-index: 10;
+  z-index: 99999999;
   height: 50px;
   border-radius: 0;
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);

@@ -6,11 +6,13 @@
       splitpanes-min="20"
       splitpanes-max="40"
     >
-      <div class="logo-bar">
-        <i class="logo"></i>
-        <span class="title">Web Socket Mock</span>
+      <div class="layout-aside">
+        <div class="logo-bar">
+          <i class="logo"></i>
+          <span class="title">Web Socket Mock</span>
+        </div>
+        <slot name="left" />
       </div>
-      <slot name="left" />
     </div>
     <split-panels horizontal splitpanes-default="80">
       <div class="panel-vertical" splitpanes-default="60">
@@ -87,8 +89,19 @@ export default {
 </style>
 
 <style lang="less" scoped>
+.layout-aside {
+  height: 100%;
+  padding-top: 50px;
+  position: relative;
+  box-sizing: border-box;
+}
+
 .logo-bar {
   height: 50px;
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
   display: flex;
   justify-content: flex-start;
   align-items: center;

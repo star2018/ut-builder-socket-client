@@ -9,6 +9,7 @@
       :value="value"
       v-bind="$attrs"
       v-on="listeners"
+      autofocus
     ></textarea>
   </div>
 </template>
@@ -93,6 +94,7 @@ export default {
   font-size: 14px;
   width: 100%;
   height: 100%;
+  background-color: transparent;
 
   &.disabled {
     cursor: not-allowed;

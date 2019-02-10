@@ -1,6 +1,6 @@
 <template>
   <div ref="codeBox" class="code-panel" :class="{ collapsed: innerCollapsed }">
-    <span class="button-bar">
+    <span v-if="showCopyButton || showCollapseButton" class="button-bar">
       <clipboard-button
         v-if="showCopyButton"
         :text="code"
@@ -250,14 +250,14 @@ export default {
 
 .button-bar {
   position: absolute;
-  right: 18px;
+  right: 0;
   top: 8px;
   line-height: 1em;
+  padding: 0 20px 8px 8px;
   cursor: pointer;
   z-index: 10;
   background-color: #f0f0f0;
   color: #8c8c8c;
-  padding-right: 2px;
 
   .code-button {
     margin-left: 8px;

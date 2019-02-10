@@ -175,15 +175,27 @@ export default {
 
 .title-bar {
   flex: 1 1 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  height: 100%;
+  text-align: center;
   flex-wrap: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 16px;
   font-weight: 700;
+
+  .title {
+    display: inline-block;
+    vertical-align: middle;
+  }
+
+  &:before {
+    content: '';
+    display: inline-block;
+    vertical-align: middle;
+    width: 0;
+    height: 100%;
+  }
 }
 
 .info-bar,

@@ -94,6 +94,9 @@ export default {
       .code-wrap {
         background-color: #fff;
       }
+      .button-bar {
+        display: none;
+      }
     }
   }
 

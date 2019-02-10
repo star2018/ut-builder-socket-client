@@ -211,7 +211,7 @@ export default {
     removeAll() {
       this.$confirm('确定要清空当前会话的历史发送记录吗？', '清空', {
         type: 'warning',
-      }).then(() => this.$emit('remove-all'))
+      }).then(() => this.$emit('remove-all'), () => {})
     },
   },
 }
@@ -313,8 +313,9 @@ export default {
 
       .button-copy {
         position: absolute;
-        right: 20px;
+        right: 0;
         top: 8px;
+        padding: 0 20px 8px 16px;
         background-color: #f7f7f7;
         color: #8c8c8c;
         z-index: 10;
