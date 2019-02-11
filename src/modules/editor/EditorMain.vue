@@ -2,23 +2,24 @@
   <div class="editor-box">
     <tool-bar
       :session="session"
+      :auto-mock="!!mocker"
       @json-edit="jsonEdit"
       @json-pretty="jsonPretty"
       @clear="clearMessageList"
       @show-history="showHistory"
+      @auto-mock="toggleMocker"
     />
 
-    <template v-if="editor === 'json'">
-      <json-editor :key="session.token" ref="jsonEditor" v-model="message" />
+    <template v-if="session">
+      <code-editor
+        ref="codeEditor"
+        :key="session.token"
+        :editor.sync="editor"
+        previewer="json"
+        v-model="message"
+        @commit="commit"
+      />
     </template>
-
-    <text-editor
-      v-else
-      ref="textEditor"
-      v-model="message"
-      :disabled="!session"
-      @keyup.ctrl.enter="commit"
-    />
 
     <history-dialog
       @remove="removeHistory"
@@ -26,36 +27,41 @@
       :visible.sync="visible.history"
       :data="history"
     />
+
+    <mocker-dialog :visible.sync="visible.mocker" />
   </div>
 </template>
 
 <script>
 import {
-  mapState as globalMapState,
   mapActions as globalMapActions,
-  mapMutations as globalMapMutations,
   mapGetters as globalMapGetters,
+  mapMutations as globalMapMutations,
+  mapState as globalMapState,
 } from 'vuex'
 
 import JSON5 from 'json5'
 import throttle from 'lodash/throttle'
 
-import JsonEditor from './JsonEditor'
-import TextEditor from './TextEditor'
+import CodeEditor from '../../components/CodeEditor'
 import ToolBar from './ToolBar'
 import HistoryDialog from './HistoryDialog'
+import MockerDialog from './MockerDialog'
 
 export default {
   name: 'EditorPanel',
 
-  components: { HistoryDialog, ToolBar, TextEditor, JsonEditor },
+  components: { CodeEditor, MockerDialog, HistoryDialog, ToolBar },
 
   data() {
     return {
       message: '',
       history: [],
+      mocker: undefined,
+      editor: 'text',
       visible: {
         history: false,
+        mocker: false,
       },
     }
   },
@@ -63,19 +69,15 @@ export default {
   computed: {
     ...globalMapState(['session']),
     ...globalMapGetters(['getHistory']),
-
-    disabled() {
-      const { session } = this
-      return !session
-    },
-
-    editor() {
-      const { session } = this
-      return (session ? session.editor : '') || 'text'
-    },
   },
 
   watch: {
+    session(cur) {
+      this.message = cur ? cur.message : ''
+      this.editor = cur ? cur.editor || 'text' : 'text'
+      this.mocker = undefined
+    },
+
     message(cur) {
       const { session } = this
       if (session) {
@@ -83,18 +85,18 @@ export default {
       }
     },
 
-    disabled(cur) {
-      if (cur) {
-        this.message = ''
+    editor(cur) {
+      const { session } = this
+      if (session) {
+        session.editor = cur
       }
     },
 
-    session(cur) {
-      this.message = cur ? cur.message : ''
-      if (cur && cur.editor === 'text') {
-        this.$nextTick(() => {
-          this.$refs.textEditor.focus()
-        })
+    mocker(cur) {
+      if (!cur) {
+        this.clearAutoMock()
+      } else {
+        this.setAutoMock()
       }
     },
   },
@@ -119,14 +121,7 @@ export default {
 
     jsonPretty: throttle(
       function() {
-        const editorType = this.editor === 'json' ? 'jsonEditor' : 'textEditor'
-        const editor = this.$refs[editorType]
-        this.message = editor.pretty()
-        if (editorType === 'textEditor') {
-          this.$nextTick(() => {
-            this.$refs.textEditor.focus()
-          })
-        }
+        this.$refs.codeEditor.pretty()
       },
       200,
       {
@@ -137,33 +132,11 @@ export default {
 
     jsonEdit: throttle(
       function() {
-        const { session } = this
+        const { session, editor } = this
         if (!session) {
           return
         }
-        const { editor } = session
-        if (editor === 'json') {
-          session.editor = 'text'
-          this.$nextTick(() => {
-            this.jsonPretty()
-          })
-        } else {
-          const { message } = this
-          try {
-            const json = message.trim() ? JSON5.parse(message) : {}
-            this.message = JSON.stringify(json)
-            session.editor = 'json'
-          } catch (e) {
-            this.$notify.error({
-              title: 'JSON格式错误',
-              dangerouslyUseHTMLString: true,
-              message: `<div class="text-word-break-wrap">${e.message.replace(
-                /^JSON5:\s*/,
-                ''
-              )}</div>`,
-            })
-          }
-        }
+        this.editor = editor === 'json' ? 'text' : 'json'
       },
       200,
       {
@@ -208,16 +181,21 @@ export default {
         this.showHistory()
       }
     },
+
+    toggleMocker() {
+      if (this.mocker) {
+        this.mocker = undefined
+      } else {
+        this.visible.mocker = true
+      }
+    },
+
+    clearAutoMock() {},
+
+    setAutoMock() {},
   },
 }
 </script>
-
-<style>
-.text-word-break-wrap {
-  word-break: break-all;
-  white-space: normal;
-}
-</style>
 
 <style lang="less" scoped>
 .editor-box {

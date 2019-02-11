@@ -1,7 +1,7 @@
 <template>
-  <div class="text-editor-wrap">
+  <div class="text-editor">
     <textarea
-      class="text-editor"
+      class="text-editor-input"
       ref="textarea"
       :placeholder="placeholder"
       :disabled="disabled"
@@ -23,7 +23,7 @@ export default {
   inheritAttrs: false,
   props: {
     value: {
-      type: String,
+      type: [String, Boolean, Number],
       default: '',
     },
     disabled: {
@@ -78,14 +78,14 @@ export default {
 </script>
 
 <style lang="less" scoped>
-.text-editor-wrap {
+.text-editor {
   padding: 8px 0 16px 16px;
   width: 100%;
   height: 100%;
   box-sizing: border-box;
 }
 
-.text-editor {
+.text-editor-input {
   outline: none;
   box-sizing: border-box;
   padding: 0;

@@ -1,8 +1,17 @@
 <template>
-  <div ref="codeBox" class="code-panel" :class="{ collapsed: innerCollapsed }">
-    <span v-if="showCopyButton || showCollapseButton" class="button-bar">
+  <div
+    ref="codeBox"
+    class="code-panel"
+    :class="{ collapsed: innerCollapsed, editable }"
+  >
+    <span
+      v-if="
+        (code && showCopyButton) || (innerCollapsible && showCollapseButton)
+      "
+      class="button-bar"
+    >
       <clipboard-button
-        v-if="showCopyButton"
+        v-if="code && showCopyButton"
         :text="code"
         class="code-button"
       />
@@ -18,7 +27,13 @@
       ></i>
     </span>
     <div class="code-box">
+      <code-mirror
+        v-if="editable"
+        v-model="codeValue"
+        :options="editorOptions"
+      />
       <pre
+        v-else
         class="code-wrap"
       ><code :key="codeKey" ref="code" class="highlight-code">{{codeFragment}}</code></pre>
     </div>
@@ -32,13 +47,18 @@ import highlight from 'highlight.js'
 import uuid from 'uuid/v4'
 
 import ClipboardButton from './ClipboardButton'
+import CodeMirror from './editor/CodeMirror'
 
 export default {
   name: 'CodePanel',
-  components: { ClipboardButton },
+  components: { CodeMirror, ClipboardButton },
   props: {
     code: {
-      type: String,
+      type: [String, Boolean, Number],
+      default: '',
+    },
+    value: {
+      type: [String, Boolean, Number],
       default: '',
     },
     collapse: {
@@ -65,13 +85,22 @@ export default {
       type: Boolean,
       default: true,
     },
+    editable: {
+      type: Boolean,
+      default: false,
+    },
+    editorOptions: {
+      type: Object,
+      default: () => ({}),
+    },
   },
 
   data() {
-    const { collapsed, collapsible } = this.$props
+    const { collapsed, collapsible, value } = this.$props
     return {
       codeFragment: '',
       codeKey: uuid(),
+      codeValue: value,
       innerCollapsed: !!collapsed,
       innerCollapsible: !!collapsible,
       highlighted: false,
@@ -83,6 +112,22 @@ export default {
       this.innerCollapsed = false
       this.innerCollapsible = false
       this.setCodeFragment(cur)
+    },
+
+    value(cur) {
+      this.codeValue = cur
+    },
+
+    codeValue(cur) {
+      this.$emit('input', cur)
+    },
+
+    editable(cur) {
+      if (cur) {
+        this.$nextTick(() => {
+          this.codeValue = this.pretty(this.codeValue, true)
+        })
+      }
     },
 
     codeFragment() {
@@ -115,10 +160,16 @@ export default {
 
   mounted() {
     this.setCodeFragment(this.code)
+    if (this.editable) {
+      this.codeValue = this.pretty(this.codeValue, true)
+    }
   },
 
   methods: {
     setCodeFragment(code) {
+      if (this.editable) {
+        return
+      }
       const codeFragment = this.getCodeFragment(code)
       const { collapse } = this
       this.innerCollapsible = !!(
@@ -132,10 +183,11 @@ export default {
 
     pretty(code, silent) {
       code = typeof code === 'string' ? code.trim() : ''
+      console.log(prettierPlugins)
       try {
         code = code
           ? prettier.format(code, {
-              parser: 'json',
+              parser: this.editable ? 'babel' : 'json',
               plugins: [prettierPlugins],
               printWidth: Math.floor(this.$refs.codeBox.clientWidth / 12),
             })
@@ -143,7 +195,7 @@ export default {
       } catch (e) {
         if (!silent) {
           this.$notify.error({
-            title: 'JSON格式化失败',
+            title: '格式化失败',
             dangerouslyUseHTMLString: true,
             message: `<pre class="notification-content-ellipsis">${
               e.message
@@ -159,7 +211,7 @@ export default {
     },
 
     highlightCode() {
-      if (!this.highlight || this.highlighted) {
+      if (!this.highlight || this.highlighted || this.editable) {
         return
       }
       this.$nextTick(() => {
@@ -179,6 +231,14 @@ export default {
   box-sizing: border-box;
   position: relative;
   overflow: visible;
+
+  &.editable {
+    height: 100%;
+    .code-box {
+      overflow: visible;
+      font-size: 14px;
+    }
+  }
 
   &:after {
     content: '';
@@ -253,7 +313,7 @@ export default {
   right: 0;
   top: 8px;
   line-height: 1em;
-  padding: 0 20px 8px 8px;
+  padding: 2px 20px 8px 8px;
   cursor: pointer;
   z-index: 10;
   background-color: #f0f0f0;

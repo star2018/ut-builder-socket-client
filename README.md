@@ -1,35 +1,5 @@
 # ut-builder-socket-client
 
-## Project setup
+## websocket mock
 
-```
-npm install
-```
-
-### Compiles and hot-reloads for development
-
-```
-npm run serve
-```
-
-### Compiles and minifies for production
-
-```
-npm run build
-```
-
-### Run your tests
-
-```
-npm run test
-```
-
-### Lints and fixes files
-
-```
-npm run lint
-```
-
-### Customize configuration
-
-See [Configuration Reference](https://cli.vuejs.org/config/).
+[vue-cli-plugin-ut-builder](https://github.com/star2018/vue-cli-plugin-ut-builder#readme) 的`websocket`客户端。

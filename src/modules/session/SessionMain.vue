@@ -39,6 +39,10 @@ export default {
     },
   },
 
+  beforeDestroy() {
+    this.detachEvent(this.socket)
+  },
+
   methods: {
     ...globalMapActions(['close']),
     ...globalMapMutations(['removeSession', 'setSession', 'setSessionByToken']),

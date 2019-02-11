@@ -13,6 +13,12 @@
         @click="$emit('json-edit')"
       ></i>
       <i
+        class="iconfont icon-mock"
+        :class="{ active: autoMock }"
+        title="自动Mock"
+        @click="$emit('auto-mock')"
+      ></i>
+      <i
         class="iconfont icon-history"
         title="历史记录"
         @click="$emit('show-history')"
@@ -36,6 +42,10 @@ export default {
     session: {
       type: Object,
       default: null,
+    },
+    autoMock: {
+      type: Boolean,
+      default: false,
     },
   },
   computed: {
@@ -99,6 +109,5 @@ export default {
   width: 100%;
   height: 100%;
   z-index: 10;
-  cursor: not-allowed;
 }
 </style>

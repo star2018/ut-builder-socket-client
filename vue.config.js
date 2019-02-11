@@ -14,6 +14,9 @@ function getTemplateParameters() {
 
 module.exports = {
   lintOnSave: false,
+  devServer: {
+    port: 9070,
+  },
   pluginOptions: {
     preprocess: {
       moduleEntry: 'src/modules/*/*Main.vue',

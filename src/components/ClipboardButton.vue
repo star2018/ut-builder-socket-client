@@ -47,6 +47,7 @@ export default {
 
 <style lang="less" scoped>
 @import '~primer-tooltips/build/build.css';
+
 .clipboard-button-copy {
   cursor: pointer;
 }
