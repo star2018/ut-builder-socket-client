@@ -1,6 +1,13 @@
 <template>
   <div class="code-mirror">
-    <code-editor class="code-editor" v-model="code" :options="editorOptions" />
+    <code-editor
+      class="code-editor"
+      v-model="code"
+      :placeholder="placeholder"
+      :options="editorOptions"
+      @ready="handleReady"
+      v-on="$listeners"
+    />
   </div>
 </template>
 
@@ -23,6 +30,10 @@ export default {
       type: Object,
       default: () => ({}),
     },
+    placeholder: {
+      type: String,
+      default: '',
+    },
   },
 
   components: {
@@ -39,14 +50,22 @@ export default {
   computed: {
     editorOptions() {
       const { options } = this
+      const setup = Object.assign({}, options)
       return Object.assign(
         {
           lineNumbers: true,
           matchBrackets: true,
           continueComments: 'Enter',
-          extraKeys: { 'Ctrl-/': 'toggleComment' },
+          indentUnit: 2,
+          tabSize: 2,
         },
-        options,
+        setup,
+        {
+          extraKeys: {
+            'Ctrl-/': 'toggleComment',
+            ...Object.assign({}, setup.extraKeys),
+          },
+        },
         {
           mode: 'javascript',
           theme: 'neat',
@@ -65,7 +84,27 @@ export default {
     },
   },
 
-  methods: {},
+  beforeDestroy() {
+    if (this.editor) {
+      this.editor.toTextArea()
+    }
+  },
+
+  methods: {
+    handleReady(editor) {
+      this.editor = editor
+    },
+
+    focus() {
+      const { editor } = this
+      if (editor) {
+        this.$nextTick(() => {
+          editor.refresh()
+          editor.focus()
+        })
+      }
+    },
+  },
 }
 </script>
 

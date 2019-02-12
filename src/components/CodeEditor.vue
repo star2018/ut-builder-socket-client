@@ -19,10 +19,13 @@
         <text-editor
           v-else
           ref="textEditor"
+          :editor="textEditor"
           :placeholder="placeholder"
           :disabled="disabled"
           v-model="innerValue"
-          @keyup.ctrl.enter="$emit('commit')"
+          :show-error-notify="showErrorNotify"
+          @format-error="$emit('format-error', arguments[0])"
+          @commit="$emit('commit')"
         />
       </div>
 
@@ -33,6 +36,8 @@
             splitpanes-default="40"
             :code="codeValue"
             :show-collapse-button="false"
+            :show-error-notify="showErrorNotify"
+            @format-error="$emit('format-error', arguments[0])"
           ></code-panel>
         </slot>
       </div>
@@ -48,10 +53,13 @@
       <text-editor
         v-else
         ref="textEditor"
+        :editor="textEditor"
         :placeholder="placeholder"
         :disabled="disabled"
         v-model="innerValue"
-        @keyup.ctrl.enter="$emit('commit')"
+        :show-error-notify="showErrorNotify"
+        @format-error="$emit('format-error', arguments[0])"
+        @commit="$emit('commit')"
       />
     </div>
   </div>
@@ -84,8 +92,13 @@ export default {
       type: String,
       default: 'text',
     },
+    textEditor: String,
     previewer: {
       type: [Boolean, String, Array],
+      default: true,
+    },
+    showErrorNotify: {
+      type: Boolean,
       default: true,
     },
   },
@@ -132,15 +145,16 @@ export default {
           const json = innerValue.trim() ? JSON5.parse(innerValue) : {}
           this.innerValue = JSON.stringify(json)
         } catch (e) {
+          const error = e.message.replace(/^JSON5:\s*/i, '')
           this.$emit('update:editor', pre)
-          this.$notify.error({
-            title: 'JSON格式错误',
-            dangerouslyUseHTMLString: true,
-            message: `<div class="text-word-break-wrap">${e.message.replace(
-              /^JSON5:\s*/,
-              ''
-            )}</div>`,
-          })
+          this.$emit('format-error', error)
+          if (this.showErrorNotify) {
+            this.$notify.error({
+              title: 'JSON格式错误',
+              dangerouslyUseHTMLString: true,
+              message: `<div class="text-word-break-wrap">${error}</div>`,
+            })
+          }
         }
       }
     },

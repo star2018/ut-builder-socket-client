@@ -3,7 +3,8 @@
     <transition name="el-zoom-in-top">
       <el-alert
         class="alert"
-        v-if="disconnected"
+        v-show="disconnected"
+        @close="disconnected = false"
         title="Mock服务已关闭或重启，请刷新当前页面"
         type="error"
         center
@@ -14,7 +15,8 @@
     <transition name="el-zoom-in-top">
       <el-alert
         class="alert"
-        v-if="showConnectedAlert"
+        v-show="showConnectedAlert"
+        @close="showConnectedAlert = false"
         title="Mock服务已连接"
         type="success"
         center

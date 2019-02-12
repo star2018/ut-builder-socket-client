@@ -1,6 +1,17 @@
 <template>
-  <div class="text-editor">
+  <div class="text-editor" :class="{ 'is-code-editor': editor === 'code' }">
+    <div ref="textarea" class="code-editor-wrap" v-if="editor === 'code'">
+      <span v-show="!value" class="placeholder-mocker">{{ placeholder }}</span>
+      <code-mirror
+        ref="codeEditor"
+        :value="value"
+        @input="$emit('input', arguments[0])"
+        @ready="handleReady"
+      />
+    </div>
+
     <textarea
+      v-else
       class="text-editor-input"
       ref="textarea"
       :placeholder="placeholder"
@@ -9,6 +20,7 @@
       :value="value"
       v-bind="$attrs"
       v-on="listeners"
+      @keyup.ctrl.enter="$emit('commit')"
       autofocus
     ></textarea>
   </div>
@@ -18,13 +30,20 @@
 import prettier from 'prettier/standalone'
 import prettierPlugins from 'prettier/parser-babylon'
 
+import CodeMirror from './CodeMirror'
+
 export default {
   name: 'TextEditor',
+  components: { CodeMirror },
   inheritAttrs: false,
   props: {
     value: {
       type: [String, Boolean, Number],
       default: '',
+    },
+    editor: {
+      type: String,
+      default: 'textarea',
     },
     disabled: {
       type: Boolean,
@@ -32,7 +51,11 @@ export default {
     },
     placeholder: {
       type: String,
-      default: '按 Ctrl + Enter 发送',
+      default: '',
+    },
+    showErrorNotify: {
+      type: Boolean,
+      default: true,
     },
   },
 
@@ -57,7 +80,8 @@ export default {
             })
           : ''
       } catch (e) {
-        if (!silent) {
+        this.$emit('format-error', e.message)
+        if (!silent && this.showErrorNotify) {
           this.$notify.error({
             title: 'JSON格式化失败',
             dangerouslyUseHTMLString: true,
@@ -71,7 +95,19 @@ export default {
     },
 
     focus() {
-      this.$refs.textarea.focus()
+      this.$nextTick(() => {
+        if (this.editor === 'code') {
+          this.$refs.codeEditor.focus()
+        } else {
+          this.$refs.textarea.focus()
+        }
+      })
+    },
+
+    handleReady(editor) {
+      editor.setOption('extraKeys', {
+        'Ctrl-Enter': () => this.$emit('commit'),
+      })
     },
   },
 }
@@ -83,6 +119,10 @@ export default {
   width: 100%;
   height: 100%;
   box-sizing: border-box;
+
+  &.is-code-editor {
+    padding: 0;
+  }
 }
 
 .text-editor-input {
@@ -98,6 +138,25 @@ export default {
 
   &.disabled {
     cursor: not-allowed;
+  }
+}
+
+.code-editor-wrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: visible;
+  font-size: 14px;
+
+  .placeholder-mocker {
+    position: absolute;
+    left: 35px;
+    top: 4px;
+    font-size: inherit;
+    color: #c0c4cc;
+    z-index: 1;
+    line-height: inherit;
   }
 }
 </style>

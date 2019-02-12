@@ -57,8 +57,10 @@ export default {
   },
 
   watch: {
-    data() {
-      this.reset()
+    data(cur, pre) {
+      if (cur !== pre) {
+        this.reset()
+      }
     },
     keyProp() {
       this.reset()
@@ -161,6 +163,21 @@ export default {
         const root = this.$refs.lazyList
         if (root) {
           root.scrollTop = root.scrollHeight
+        }
+      })
+    },
+
+    scrollToBottomLazy(throttle) {
+      this.$nextTick(() => {
+        const root = this.$refs.lazyList
+        if (root) {
+          const scrollHeight = root.scrollHeight
+          const space = Math.abs(
+            scrollHeight - (root.scrollTop + root.clientHeight)
+          )
+          if (space < (+throttle || 10)) {
+            root.scrollTop = scrollHeight
+          }
         }
       })
     },

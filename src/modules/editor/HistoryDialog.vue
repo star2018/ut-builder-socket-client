@@ -1,6 +1,6 @@
 <template>
   <el-dialog
-    title="历史发送记录"
+    :title="title"
     class="history-dialog"
     :visible.sync="visibility"
     :close-on-click-modal="false"
@@ -63,11 +63,12 @@
               :code="item.content"
               :collapse="4"
               :highlight="false"
-              show-copy-button
               collapsed
             />
             <div v-else class="text">
-              <clipboard-button :text="item.content" class="button-copy" />
+              <span class="button-copy">
+                <clipboard-button :text="item.content" />
+              </span>
               <span>{{ item.content }}</span>
             </div>
           </div>
@@ -80,6 +81,11 @@
 </template>
 
 <script>
+import {
+  mapGetters as globalMapGetters,
+  mapMutations as globalMapMutations,
+} from 'vuex'
+
 import { format as timeAgo } from 'timeago.js'
 import uuid from 'uuid/v4'
 import CodePanel from '../../components/CodePanel'
@@ -94,34 +100,46 @@ export default {
       type: Boolean,
       default: false,
     },
-    data: {
-      type: Array,
-      default: () => [],
-    },
+
     title: {
       type: String,
       default: '历史记录',
     },
+
+    clearConfirmTips: {
+      type: String,
+      default: '确定要清空吗？',
+    },
+
+    keyMap: {
+      type: Object,
+      default: () => ({}),
+    },
   },
+
   data() {
     return {
       checking: false,
       visibility: this.$props.visible,
       keyword: '',
+      history: [],
     }
   },
+
   computed: {
+    ...globalMapGetters(['getHistory']),
+
     filteredHistory() {
-      const { keyword, data } = this
+      const { keyword, history } = this
       let list = null
       if (keyword) {
         const reg = new RegExp(
           keyword.replace(/[*.?+$^[\](){}|\\]/g, '\\$&'),
           'i'
         )
-        list = data.filter(({ content }) => reg.test(content))
+        list = history.filter(({ content }) => reg.test(content))
       } else {
-        list = data
+        list = history
       }
       return this.getHistoryGroups(list)
     },
@@ -155,24 +173,21 @@ export default {
     },
     visibility(visible) {
       this.$emit('update:visible', !!visible)
+      if (visible) {
+        this.refresh()
+      }
     },
   },
 
   methods: {
-    getListHeight() {
-      return Math.max(window.innerHeight - 350, 300)
-    },
-
-    formatTime(timestamp) {
-      return timeAgo(timestamp, 'zh_CN')
-    },
+    ...globalMapMutations(['clearHistory', 'clearAllHistory']),
 
     getHistoryGroups(list) {
       const groups = {}
       for (const item of list) {
         const time = this.formatTime(item.timestamp)
         const group = groups[time] || []
-        this.$set(item, 'checked', false)
+        item.checked = false
         group.push(item)
         groups[time] = group
       }
@@ -181,6 +196,14 @@ export default {
         key: uuid(),
         items: groups[time],
       }))
+    },
+
+    getListHeight() {
+      return Math.max(window.innerHeight - 350, 300)
+    },
+
+    formatTime(timestamp) {
+      return timeAgo(timestamp, 'zh_CN')
     },
 
     reset() {
@@ -205,13 +228,49 @@ export default {
     },
 
     remove() {
-      this.$emit('remove', [...this.checkedItems])
+      const items = [...this.checkedItems]
+      this.removeHistory(items)
+      this.$emit('remove', items)
     },
 
     removeAll() {
-      this.$confirm('确定要清空当前会话的历史发送记录吗？', '清空', {
+      this.$confirm(this.clearConfirmTips, '清空', {
         type: 'warning',
-      }).then(() => this.$emit('remove-all'), () => {})
+      }).then(
+        () => {
+          this.removeAllHistory()
+          this.$emit('clear')
+        },
+        () => {}
+      )
+    },
+
+    removeHistory(data) {
+      const { keyMap } = this
+      const { path, type } = Object.assign({}, keyMap)
+      this.clearHistory({
+        path,
+        type,
+        data,
+      })
+      this.refresh()
+    },
+
+    removeAllHistory() {
+      const { keyMap } = this
+      const { path, type } = Object.assign({}, keyMap)
+      this.clearAllHistory({ path, type })
+      this.refresh()
+    },
+
+    refresh() {
+      const { keyMap } = this
+      const { path, type } = Object.assign({}, keyMap)
+      const history = this.getHistory(path, type)
+      for (const item of history) {
+        item.checked = false
+      }
+      this.history = history
     },
   },
 }
@@ -315,7 +374,7 @@ export default {
         position: absolute;
         right: 0;
         top: 8px;
-        padding: 2px 20px 8px 16px;
+        padding: 1px 20px 8px 16px;
         background-color: #f7f7f7;
         color: #8c8c8c;
         z-index: 10;

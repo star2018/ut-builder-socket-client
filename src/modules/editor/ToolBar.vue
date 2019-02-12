@@ -14,7 +14,7 @@
       ></i>
       <i
         class="iconfont icon-mock"
-        :class="{ active: autoMock }"
+        :class="{ active: mocking }"
         title="自动Mock"
         @click="$emit('auto-mock')"
       ></i>
@@ -43,15 +43,15 @@ export default {
       type: Object,
       default: null,
     },
-    autoMock: {
-      type: Boolean,
-      default: false,
-    },
   },
   computed: {
     editor() {
       const { session } = this
       return session ? session.editor : ''
+    },
+    mocking() {
+      const { session } = this
+      return session ? !!session.mocker : false
     },
   },
 }

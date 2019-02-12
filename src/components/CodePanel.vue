@@ -4,15 +4,10 @@
     class="code-panel"
     :class="{ collapsed: innerCollapsed, editable }"
   >
-    <span
-      v-if="
-        (code && showCopyButton) || (innerCollapsible && showCollapseButton)
-      "
-      class="button-bar"
-    >
+    <span v-if="showButtonBar" class="button-bar">
       <clipboard-button
-        v-if="code && showCopyButton"
-        :text="code"
+        v-if="showClipboardButton"
+        :text="editable ? value : code"
         class="code-button"
       />
       <i
@@ -79,7 +74,7 @@ export default {
     },
     showCopyButton: {
       type: Boolean,
-      default: false,
+      default: true,
     },
     highlight: {
       type: Boolean,
@@ -93,6 +88,10 @@ export default {
       type: Object,
       default: () => ({}),
     },
+    showErrorNotify: {
+      type: Boolean,
+      default: true,
+    },
   },
 
   data() {
@@ -105,6 +104,18 @@ export default {
       innerCollapsible: !!collapsible,
       highlighted: false,
     }
+  },
+
+  computed: {
+    showClipboardButton() {
+      const { code, value, showCopyButton, editable } = this
+      return !!(showCopyButton && (editable ? value.trim() : code.trim()))
+    },
+
+    showButtonBar() {
+      const { innerCollapsible, showCollapseButton, showClipboardButton } = this
+      return !!(showClipboardButton || (showCollapseButton && innerCollapsible))
+    },
   },
 
   watch: {
@@ -124,8 +135,9 @@ export default {
 
     editable(cur) {
       if (cur) {
+        this.setCodeFragment()
         this.$nextTick(() => {
-          this.codeValue = this.pretty(this.codeValue, true)
+          this.setCodeValue()
         })
       }
     },
@@ -159,15 +171,23 @@ export default {
   },
 
   mounted() {
-    this.setCodeFragment(this.code)
-    if (this.editable) {
-      this.codeValue = this.pretty(this.codeValue, true)
+    const { code, editable } = this
+    this.setCodeFragment(code)
+    if (editable) {
+      this.setCodeValue()
     }
   },
 
   methods: {
+    setCodeValue() {
+      const { codeValue, code } = this
+      this.codeValue = this.pretty(codeValue.trim() || code, true)
+    },
+
     setCodeFragment(code) {
       if (this.editable) {
+        this.codeFragment = ''
+        this.innerCollapsible = false
         return
       }
       const codeFragment = this.getCodeFragment(code)
@@ -182,18 +202,21 @@ export default {
     },
 
     pretty(code, silent) {
+      const { editable } = this
       code = typeof code === 'string' ? code.trim() : ''
-      console.log(prettierPlugins)
       try {
         code = code
           ? prettier.format(code, {
-              parser: this.editable ? 'babel' : 'json',
+              parser: editable ? 'babel' : 'json',
               plugins: [prettierPlugins],
-              printWidth: Math.floor(this.$refs.codeBox.clientWidth / 12),
+              printWidth: Math.floor(
+                this.$refs.codeBox.clientWidth / (editable ? 14 : 12)
+              ),
             })
           : ''
       } catch (e) {
-        if (!silent) {
+        this.$emit('format-error', e.message)
+        if (!silent && this.showErrorNotify) {
           this.$notify.error({
             title: '格式化失败',
             dangerouslyUseHTMLString: true,
@@ -232,14 +255,6 @@ export default {
   position: relative;
   overflow: visible;
 
-  &.editable {
-    height: 100%;
-    .code-box {
-      overflow: visible;
-      font-size: 14px;
-    }
-  }
-
   &:after {
     content: '';
     display: block;
@@ -267,6 +282,19 @@ export default {
         z-index: 1;
         font-weight: bold;
       }
+    }
+  }
+
+  &.editable {
+    height: 100%;
+    .code-box {
+      overflow: visible;
+      font-size: 14px;
+    }
+
+    .button-bar {
+      background-color: transparent;
+      z-index: 5;
     }
   }
 }
@@ -313,7 +341,7 @@ export default {
   right: 0;
   top: 8px;
   line-height: 1em;
-  padding: 2px 20px 8px 8px;
+  padding: 1px 20px 8px 8px;
   cursor: pointer;
   z-index: 10;
   background-color: #f0f0f0;

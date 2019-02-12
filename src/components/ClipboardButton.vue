@@ -1,6 +1,7 @@
 <template>
   <span
-    class="tooltipped-n tooltipped-no-delay clipboard-button-copy"
+    class="tooltipped-no-delay clipboard-button-copy"
+    :class="{ [`tooltipped-${position}`]: true }"
     :aria-label="tooltip"
     :data-clipboard-text="text"
     data-clipboard-action="copy"
@@ -40,6 +41,13 @@ export default {
     icon: {
       type: String,
       default: 'icon-copy',
+    },
+    position: {
+      type: String,
+      validator(value) {
+        return /^[nwes]$/.test(value)
+      },
+      default: 'w',
     },
   },
 }

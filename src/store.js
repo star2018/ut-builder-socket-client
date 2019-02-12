@@ -43,11 +43,43 @@ function stringify(code) {
   return `${code}`
 }
 
-function getHistoryKey(path) {
+function getHistoryKey(path, type) {
   return hash
     .sha1()
-    .update(`ut-builder-socket-client-history-${path}`)
+    .update(`ut-builder-socket-client-history-${path}@${type}`)
     .digest('hex')
+}
+
+function getLocalStorageData(key) {
+  const value = localStorage.getItem(key)
+  return (value ? JSON.parse(value) : []).map(({ tp, ts, c }) => ({
+    type: tp,
+    timestamp: ts,
+    content: c,
+  }))
+}
+
+function setLocalStorageData(key, data) {
+  if (data === null) {
+    localStorage.removeItem(key)
+  } else if (Array.isArray(data)) {
+    localStorage.setItem(
+      key,
+      JSON.stringify(
+        data.map(({ timestamp, type, content }) => ({
+          tp: type,
+          ts: timestamp,
+          c: content,
+        }))
+      )
+    )
+  }
+}
+
+function pushLocalStorageData(key, data) {
+  const histories = getLocalStorageData(key)
+  histories.unshift(data)
+  setLocalStorageData(key, histories)
 }
 
 export default {
@@ -114,19 +146,26 @@ export default {
           commit('closeSession', connection.token)
         } else if (type === 'data') {
           const { data, token } = connection
+          const session = getters.getSessionByToken(token)
           commit('pushMessage', {
-            session: getters.getSessionByToken(token),
+            session,
             type: detectType(data),
             content: data,
             from: 'server',
             success: true,
           })
+          if (session.mocker) {
+            const { timer, caller } = session.mocker
+            if (!timer && caller) {
+              caller(parse(data))
+            }
+          }
         }
       })
     },
 
     // 发送数据
-    async send({ state, getters, commit }, { token, data }) {
+    async send({ state, getters, commit }, { token, data, mock }) {
       const { socket } = state
       const session = getters.getSessionByToken(token)
       let success = false
@@ -141,23 +180,13 @@ export default {
           })
           success = true
           //
-          const { path } = session
-          const { key, history } = getters.getHistory(path)
-          history.unshift({
-            type,
-            content,
-            timestamp: Date.now(),
-          })
-          localStorage.setItem(
-            key,
-            JSON.stringify(
-              history.map(({ timestamp, type, content }) => ({
-                tp: type,
-                ts: timestamp,
-                c: content,
-              }))
-            )
-          )
+          if (!mock) {
+            commit('pushMessageHistory', {
+              type,
+              path: session.path,
+              data: content,
+            })
+          }
         } catch (e) {
           //
         }
@@ -193,6 +222,37 @@ export default {
     // 设置当前socket
     setSocket(state, socket) {
       state.socket = socket
+    },
+
+    // 设置模拟脚本
+    setMocker(state, payload) {
+      const { token, script, timer, caller } = payload
+      for (const session of state.sessionList) {
+        if (session.token === token) {
+          if (session.mocker) {
+            if (session.mocker.timer) {
+              clearInterval(session.mocker.timer)
+            }
+          }
+          if (caller || timer) {
+            session.mocker = {
+              script,
+              timer,
+              caller,
+            }
+            if (script) {
+              pushLocalStorageData(getHistoryKey(session.path, 'mocker'), {
+                type: 'json',
+                timestamp: Date.now(),
+                content: script,
+              })
+            }
+          } else {
+            session.mocker = null
+          }
+          break
+        }
+      }
     },
 
     // 设置当前会话信息
@@ -241,6 +301,7 @@ export default {
         messages: [openState],
         editor: 'text',
         disconnected: false,
+        mocker: null,
       })
     },
 
@@ -250,8 +311,15 @@ export default {
       const { sessionList } = state
       for (const session of sessionList) {
         if (session.token === token) {
+          const { mocker } = session
           session.disconnected = true
           session.closeTimestamp = Date.now()
+          if (mocker) {
+            if (mocker.timer) {
+              clearInterval(mocker.timer)
+            }
+            session.mocker = null
+          }
           session.messages.push({
             time,
             timestamp: Date.now(),
@@ -365,19 +433,29 @@ export default {
 
     // 清空指定的历史记录
     clearHistory(state, payload) {
-      const { path, items } = payload
-      const key = getHistoryKey(path)
-      const value = localStorage.getItem(key)
-      const histories = value ? JSON.parse(value) : []
+      const { path, type, data } = payload
+      const key = getHistoryKey(path, type)
+      const histories = getLocalStorageData(key)
       const updated = histories.filter(
-        ({ ts }) => !items.some((item) => item.timestamp === ts)
+        ({ timestamp }) => !data.some((item) => item.timestamp === timestamp)
       )
-      localStorage.setItem(key, JSON.stringify(updated))
+      setLocalStorageData(key, updated)
     },
 
     // 清空所有历史记录
-    clearAllHistory(state, path) {
-      localStorage.removeItem(getHistoryKey(path))
+    clearAllHistory(state, payload) {
+      const { path, type } = payload
+      setLocalStorageData(getHistoryKey(path, type), null)
+    },
+
+    // 存储历史记录
+    pushMessageHistory(state, payload) {
+      const { path, type, data } = payload
+      pushLocalStorageData(getHistoryKey(path, 'message'), {
+        type,
+        content: data,
+        timestamp: Date.now(),
+      })
     },
   },
 
@@ -391,18 +469,9 @@ export default {
       }
     },
 
-    // 获取历史消息记录
-    getHistory: () => (path) => {
-      const key = getHistoryKey(path)
-      const value = localStorage.getItem(key)
-      return {
-        key,
-        history: (value ? JSON.parse(value) : []).map(({ tp, ts, c }) => ({
-          type: tp,
-          timestamp: ts,
-          content: c,
-        })),
-      }
+    // 获取历史记录
+    getHistory: () => (path, type) => {
+      return getLocalStorageData(getHistoryKey(path, type))
     },
   },
 }

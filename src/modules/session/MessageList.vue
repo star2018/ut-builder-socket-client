@@ -26,6 +26,7 @@
             class="code-panel"
             :code="item.content"
             :show-collapse-button="false"
+            :show-copy-button="false"
             :collapsed.sync="item.collapsed"
             :collapsible.sync="item.collapsible"
           />
@@ -74,12 +75,22 @@ export default {
       const { session } = this
       return session ? session.messages : []
     },
+
+    mocking() {
+      const { session } = this
+      return session ? !!session.mocker : false
+    },
   },
 
   watch: {
     messages() {
       this.$nextTick(() => {
-        this.$refs.messageList.scrollToBottom()
+        const messageList = this.$refs.messageList
+        if (!this.mocking) {
+          messageList.scrollToBottom()
+        } else {
+          messageList.scrollToBottomLazy(20)
+        }
       })
     },
   },

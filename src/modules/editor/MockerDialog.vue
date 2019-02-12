@@ -16,9 +16,12 @@
         v-if="!scriptEditing"
         class="code-editor"
         ref="codeEditor"
-        :editor.sync="editor"
+        text-editor="code"
         placeholder="请输入模板数据"
+        :editor.sync="editor"
         v-model="code"
+        :show-error-notify="false"
+        @format-error="showError"
         @resize="prettyScript"
       >
         <code-panel
@@ -26,6 +29,7 @@
           slot="previewer"
           :code="mockScript"
           :show-collapse-button="false"
+          show-copy-button
         />
       </code-editor>
 
@@ -35,25 +39,64 @@
         editable
         v-model="mockScript"
         :show-collapse-button="false"
+        :show-error-notify="false"
+        @format-error="showError"
       />
+      <transition name="el-zoom-in-bottom">
+        <el-alert
+          type="error"
+          class="error-alert"
+          v-show="errorMessage.visible"
+          @close="errorMessage.visible = false"
+        >
+          <pre slot="title">{{ errorMessage.content }}</pre>
+        </el-alert>
+      </transition>
     </div>
 
     <div slot="footer" class="dialog-footer">
       <div>
-        <el-button :disabled="scriptEditing" @click="editScript"
+        <el-button v-if="!scriptEditing" size="small" @click="editScript"
           >脚本模式</el-button
         >
-        <el-button :disabled="scriptEditing" @click="toggleEditor">{{
-          editor === 'json' ? '文本模式' : 'JSON模式'
-        }}</el-button>
-        <el-button @click="pretty">格式化</el-button>
-        <el-button @click="pretty">历史记录</el-button>
+
+        <el-button v-else size="small" @click="$emit('show-history')"
+          >历史记录</el-button
+        >
+
+        <el-button
+          size="small"
+          class="bigger-button"
+          v-if="!scriptEditing"
+          @click="toggleEditor"
+          >{{ editor === 'json' ? '文本模式' : 'JSON模式' }}</el-button
+        >
+
+        <el-button size="small" @click="pretty">格式化</el-button>
+
+        <div class="timer-container">
+          <div class="timer-box">
+            <el-checkbox class="checker" v-model="timer.enabled" />
+            <div class="timer-wrap" :class="{ disabled: !timer.enabled }">
+              <span>间隔</span>
+              <el-input-number
+                size="small"
+                :disabled="!timer.enabled"
+                :min="1"
+                :max="600"
+                v-model="timer.delay"
+                class="input"
+              />
+              <span>秒自动发送</span>
+            </div>
+          </div>
+        </div>
       </div>
       <div>
-        <el-button @click="visibility = false">取 消</el-button>
+        <el-button size="small" @click="visibility = false">取 消</el-button>
         <el-button
+          size="small"
           type="primary"
-          :loading="submitting"
           :disabled="!submittable"
           @click="createMocker"
           >开启Mock</el-button
@@ -71,10 +114,27 @@ import {
 
 import JSON5 from 'json5'
 import throttle from 'lodash/throttle'
+import cloneDeep from 'lodash/cloneDeep'
 import uuid from 'uuid/v4'
 
 import CodeEditor from '../../components/CodeEditor'
 import CodePanel from '../../components/CodePanel'
+
+const defaultData = {
+  code: '',
+  mockScript: '',
+  editor: 'text',
+  submittable: false,
+  scriptEditing: false,
+  errorMessage: {
+    visible: false,
+    content: '',
+  },
+  timer: {
+    enabled: false,
+    delay: 5,
+  },
+}
 
 export default {
   name: 'MockerDialog',
@@ -92,13 +152,9 @@ export default {
   data() {
     return {
       visibility: this.$props.visible,
-      code: '',
-      mockScript: '',
-      editor: 'text',
-      submitting: false,
-      submittable: false,
-      scriptEditing: false,
       style: this.getStyle(),
+      submittable: false,
+      ...cloneDeep(defaultData),
     }
   },
 
@@ -183,72 +239,38 @@ export default {
 
     getStyle() {
       return {
-        width: Math.max(window.innerWidth - 350, 700) + 'px',
+        width: Math.min(Math.max(window.innerWidth - 350, 800), 1200) + 'px',
         height: Math.max(window.innerHeight - 300, 300) + 'px',
       }
     },
 
     createMocker() {
-      const script = this.scriptEditing ? this.mockScript : this.wrapScript()
-      const { socket, session } = this
-      if (socket && session) {
-        this.submitting = true
-        const id = uuid()
-        socket.send({
-          type: 'message',
-          call: 'mock-define',
-          token: session.token,
-          data: script,
-          key: id,
-        })
-        socket.on(
-          'message',
-          (this.createMockerHandler = (message) => {
-            if (this.visibility) {
-              const { type, data, key } = Object.assign({}, message)
-              if (type === 'message' && key === id) {
-                if (data) {
-                  this.setHistory(script)
-                  this.$emit('mock-created', {
-                    id: data,
-                  })
-                }
-                this.visibility = false
-              }
-            }
+      const { timer } = this
+      this.prettyScript(false)
+      this.$nextTick(() => {
+        if (!this.errorMessage.visible) {
+          const script = this.scriptEditing
+            ? this.mockScript
+            : this.wrapScript()
+          this.$emit('create-mocker', {
+            script: this.$refs.codePanel.pretty(script, true),
+            delay: timer.enabled ? +timer.delay : 0,
           })
-        )
-      }
+          this.visibility = false
+        }
+      })
     },
-
-    setHistory(content) {},
 
     toggleEditor() {
       this.editor = this.editor === 'json' ? 'text' : 'json'
     },
 
     editScript() {
-      this.$confirm(
-        '切换成脚本模式后，将不能再次切换成JSON模式，确定要切换吗？',
-        '脚本模式',
-        {
-          type: 'warning',
-        }
-      ).then(
-        () => {
-          this.scriptEditing = true
-        },
-        () => {}
-      )
+      this.scriptEditing = true
     },
 
     reset() {
-      this.code = ''
-      this.mockScript = ''
-      this.editor = 'text'
-      this.submitting = false
-      this.submittable = false
-      this.scriptEditing = false
+      Object.assign(this, cloneDeep(defaultData))
       this.clearCreateMockerHandler()
     },
 
@@ -260,10 +282,10 @@ export default {
       }
     },
 
-    prettyScript() {
+    prettyScript(silent) {
       this.mockScript = this.$refs.codePanel.pretty(
         this.mockScript,
-        !this.scriptEditing
+        typeof silent === 'boolean' ? silent : !this.scriptEditing
       )
     },
 
@@ -275,8 +297,23 @@ export default {
       this.prettyScript()
     },
 
+    showHistory() {},
+
+    showError(error) {
+      if (!error) {
+        return
+      }
+      const { errorMessage, errorAlertCloseTimer } = this
+      errorMessage.content = error
+      errorMessage.visible = true
+      clearTimeout(errorAlertCloseTimer)
+      this.errorAlertCloseTimer = setTimeout(() => {
+        errorMessage.visible = false
+      }, 5000)
+    },
+
     wrapScript() {
-      return `import Mock from 'mockjs';export default ()=>{return ${this.mockScript.trim() ||
+      return `function Runner(data){return ${this.mockScript.trim() ||
         'Mock.mock({})'}}`
     },
   },
@@ -292,12 +329,12 @@ export default {
         padding-left: 0;
       }
       .json-editor-container {
-        padding-left: 0;
+        padding-left: 6px;
       }
     }
   }
   .el-dialog__footer {
-    border-top: 1px solid #e4e7ed;
+    border: none;
     margin: 0 20px;
     padding: 20px 0;
   }
@@ -312,9 +349,51 @@ export default {
 }
 
 .editor-wrap {
-  &.editing {
-    border: 1px solid #e4e7ed;
-    border-bottom: none;
+  position: relative;
+  border: 1px solid #e4e7ed;
+  border-radius: 2px;
+
+  .code-editor {
+    border: none;
   }
+
+  .error-alert {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    z-index: 5;
+  }
+}
+
+.timer-container {
+  display: inline-block;
+  height: 100%;
+
+  .timer-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+
+    .checker {
+      margin: 0 8px 0 24px;
+    }
+
+    .input {
+      width: 108px;
+      margin: 0 4px;
+    }
+
+    .timer-wrap {
+      &.disabled {
+        color: #909399;
+      }
+    }
+  }
+}
+
+.bigger-button {
+  width: 90px;
 }
 </style>

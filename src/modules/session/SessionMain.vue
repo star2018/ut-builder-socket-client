@@ -5,6 +5,16 @@
       :session="session"
       @remove-session="remove"
     />
+    <transition name="el-zoom-in-top">
+      <el-alert
+        class="alert"
+        v-show="mocking"
+        :title="mockAlertTitle"
+        :closable="false"
+        type="success"
+        center
+      />
+    </transition>
 
     <message-list class="message-list" :session="session" />
   </div>
@@ -28,6 +38,20 @@ export default {
   computed: {
     ...globalMapState(['session', 'socket']),
     ...globalMapGetters(['getSessionByToken']),
+
+    mocking() {
+      const { session } = this
+      return session ? !!session.mocker : false
+    },
+
+    mockAlertTitle() {
+      const { session, mocking } = this
+      if (mocking) {
+        const { timer } = session.mocker
+        return `自动发送开启中（${timer ? '定时发送' : '自动回复'}）`
+      }
+      return '自动发送已终止'
+    },
   },
 
   watch: {
@@ -45,7 +69,12 @@ export default {
 
   methods: {
     ...globalMapActions(['close']),
-    ...globalMapMutations(['removeSession', 'setSession', 'setSessionByToken']),
+    ...globalMapMutations([
+      'removeSession',
+      'setSession',
+      'setMocker',
+      'setSessionByToken',
+    ]),
 
     attachEvent(socket) {
       if (!socket) {
@@ -65,10 +94,15 @@ export default {
               message: session.title,
             })
           } else if (type === 'connection') {
-            this.showSessionNotify(
-              { type: 'success', title: '会话已连接' },
-              session
-            )
+            this.$nextTick(() => {
+              const cur = this.session
+              if (cur && cur.token !== token) {
+                this.showSessionNotify(
+                  { type: 'success', title: '会话已连接' },
+                  session
+                )
+              }
+            })
           } else if (type === 'data') {
             if (session !== this.session) {
               this.showSessionNotify(
@@ -170,5 +204,13 @@ export default {
 
 .status-bar {
   flex: none;
+}
+
+.alert {
+  height: 24px;
+  flex: none;
+  box-sizing: border-box;
+  border-radius: 0;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.04);
 }
 </style>
