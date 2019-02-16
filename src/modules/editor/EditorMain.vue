@@ -7,6 +7,7 @@
       @clear="clearMessageList"
       @show-history="showHistory('message')"
       @auto-mock="toggleMocker"
+      @send-data="commit"
     />
 
     <template v-if="session">
@@ -16,6 +17,7 @@
         :key="session.token"
         :editor.sync="editor"
         text-editor="code"
+        text-format="json"
         placeholder="按 Ctrl + Enter 发送"
         previewer="json"
         v-model="message"
@@ -47,7 +49,6 @@ import {
 
 import Mock from 'mockjs'
 import JSON5 from 'json5'
-import throttle from 'lodash/throttle'
 
 import CodeEditor from '../../components/CodeEditor'
 import ToolBar from './ToolBar'
@@ -123,31 +124,17 @@ export default {
       }
     },
 
-    jsonPretty: throttle(
-      function() {
-        this.$refs.codeEditor.pretty()
-      },
-      200,
-      {
-        leading: true,
-        trailing: false,
-      }
-    ),
+    jsonPretty() {
+      this.$refs.codeEditor.pretty()
+    },
 
-    jsonEdit: throttle(
-      function() {
-        const { session, editor } = this
-        if (!session) {
-          return
-        }
-        this.editor = editor === 'json' ? 'text' : 'json'
-      },
-      200,
-      {
-        leading: true,
-        trailing: false,
+    jsonEdit() {
+      const { session, editor } = this
+      if (!session) {
+        return
       }
-    ),
+      this.editor = editor === 'json' ? 'text' : 'json'
+    },
 
     clearMessageList() {
       const { session } = this
@@ -193,7 +180,7 @@ export default {
 
     toggleMocker() {
       const { session } = this
-      if (session.mocker) {
+      if (session.mocker && session.mocker.enabled) {
         this.clearMocker(session)
       } else {
         this.visible.mocker = true
@@ -203,6 +190,7 @@ export default {
     clearMocker(session) {
       const { token } = session
       this.setMocker({
+        enabled: false,
         token,
       })
     },
@@ -225,9 +213,11 @@ export default {
       }
       this.setMocker({
         token: session.token,
+        enabled: true,
         script,
         timer,
         caller,
+        delay,
       })
     },
 
@@ -298,7 +288,7 @@ export default {
           { args: [], values: [] }
         )
         const ctxArgs = args.join(',')
-        code = `return function(${ctxArgs}){return((function(){${code};return Runner})())}`
+        code = `return function(${ctxArgs}){return((function(){${code};return main})())}`
         const executor = new Function(code)().apply(undefined, values)
         return executor.apply(undefined, [data])
       } catch (e) {

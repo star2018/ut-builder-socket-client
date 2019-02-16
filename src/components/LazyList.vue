@@ -10,7 +10,11 @@
 
 <script>
 import uuid from 'uuid/v4'
-import throttle from 'lodash/throttle'
+
+import {
+  scrollElementToBottom,
+  setElementScrollPosition,
+} from '../utils/scroll'
 
 export default {
   name: 'LazyList',
@@ -81,41 +85,34 @@ export default {
   },
 
   methods: {
-    handleScroll: throttle(
-      function(event) {
-        const target = event.target
-        const { reverse, lastScrollTop } = this
-        const scrollTop = target.scrollTop
-        this.lastScrollTop = scrollTop
-        let reached = false
-        if (reverse) {
-          if (scrollTop === 0) {
-            reached = true
-          } else if (scrollTop < lastScrollTop && scrollTop < 50) {
-            reached = true
-          }
-        } else {
-          const clientHeight = target.clientHeight
-          const scrollHeight = target.scrollHeight
-          if (scrollTop + clientHeight === scrollHeight) {
-            reached = true
-          } else if (
-            scrollTop > lastScrollTop &&
-            Math.abs(scrollHeight - (scrollTop + clientHeight)) < 50
-          ) {
-            reached = true
-          }
+    handleScroll(event) {
+      const target = event.target
+      const { reverse, lastScrollTop } = this
+      const scrollTop = target.scrollTop
+      this.lastScrollTop = scrollTop
+      let reached = false
+      if (reverse) {
+        if (scrollTop === 0) {
+          reached = true
+        } else if (scrollTop < lastScrollTop && scrollTop < 50) {
+          reached = true
         }
-        if (reached) {
-          this.appendMore()
+      } else {
+        const clientHeight = target.clientHeight
+        const scrollHeight = target.scrollHeight
+        if (scrollTop + clientHeight === scrollHeight) {
+          reached = true
+        } else if (
+          scrollTop > lastScrollTop &&
+          Math.abs(scrollHeight - (scrollTop + clientHeight)) < 50
+        ) {
+          reached = true
         }
-      },
-      100,
-      {
-        leading: false,
-        trailing: true,
       }
-    ),
+      if (reached) {
+        this.appendMore()
+      }
+    },
 
     hasScrollBar(target) {
       target = target || this.$refs.lazyList
@@ -162,31 +159,31 @@ export default {
       this.$nextTick(() => {
         const root = this.$refs.lazyList
         if (root) {
-          root.scrollTop = root.scrollHeight
+          scrollElementToBottom(root, true)
         }
       })
     },
 
     scrollToBottomLazy(throttle) {
-      this.$nextTick(() => {
-        const root = this.$refs.lazyList
-        if (root) {
-          const scrollHeight = root.scrollHeight
-          const space = Math.abs(
-            scrollHeight - (root.scrollTop + root.clientHeight)
-          )
-          if (space < (+throttle || 10)) {
-            root.scrollTop = scrollHeight
-          }
+      const root = this.$refs.lazyList
+      if (root) {
+        const scrollHeight = root.scrollHeight
+        const space = Math.abs(
+          scrollHeight - (root.scrollTop + root.clientHeight)
+        )
+        if (space < (+throttle || 10)) {
+          this.$nextTick(() => {
+            scrollElementToBottom(root, true)
+          })
         }
-      })
+      }
     },
 
     scrollTo(position) {
       this.$nextTick(() => {
         const root = this.$refs.lazyList
         if (root) {
-          root.scrollTop = position
+          setElementScrollPosition(root, { top: position })
         }
       })
     },

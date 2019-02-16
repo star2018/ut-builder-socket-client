@@ -5,16 +5,19 @@
       :session="session"
       @remove-session="remove"
     />
-    <transition name="el-zoom-in-top">
-      <el-alert
-        class="alert"
-        v-show="mocking"
-        :title="mockAlertTitle"
-        :closable="false"
-        type="success"
-        center
-      />
-    </transition>
+
+    <el-alert
+      class="close-mocker-alert"
+      v-show="mocking"
+      type="success"
+      @close="stopMock"
+      center
+    >
+      <div slot="title">
+        <span>{{ mockAlertTitle }}</span>
+        <span class="timer" v-if="mockTimerString">{{ mockTimerString }}</span>
+      </div>
+    </el-alert>
 
     <message-list class="message-list" :session="session" />
   </div>
@@ -35,13 +38,19 @@ export default {
   name: 'SessionPanel',
   components: { MessageList, StatusBar },
 
+  data() {
+    return {
+      mockTimerString: '',
+    }
+  },
+
   computed: {
     ...globalMapState(['session', 'socket']),
     ...globalMapGetters(['getSessionByToken']),
 
     mocking() {
       const { session } = this
-      return session ? !!session.mocker : false
+      return session && session.mocker ? !!session.mocker.enabled : false
     },
 
     mockAlertTitle() {
@@ -61,6 +70,24 @@ export default {
         this.attachEvent(cur)
       }
     },
+
+    mocking(cur) {
+      clearInterval(this.mockTimer)
+      this.mockTimerString = ''
+      if (cur) {
+        const { delay } = this.session.mocker
+        if (delay) {
+          let time = +delay
+          this.mockTimerString = `${time}`
+          this.mockTimer = setInterval(() => {
+            this.mockTimerString = `${--time}`
+            if (!time) {
+              time = +delay
+            }
+          }, 1000)
+        }
+      }
+    },
   },
 
   beforeDestroy() {
@@ -75,6 +102,13 @@ export default {
       'setMocker',
       'setSessionByToken',
     ]),
+
+    stopMock() {
+      this.setMocker({
+        token: this.session.token,
+        enabled: false,
+      })
+    },
 
     attachEvent(socket) {
       if (!socket) {
@@ -151,19 +185,26 @@ export default {
     },
 
     remove() {
-      this.$confirm('确定要关闭当前会话吗？', '关闭', {
+      const { session } = this
+      const { token, title, disconnected } = session
+      const handler = () => {
+        this.removeSession(token)
+        this.setSession(null)
+        this.$notify.info({
+          title: '会话已关闭',
+          message: title,
+        })
+      }
+      if (disconnected) {
+        handler()
+        return
+      }
+      this.$confirm('当前会话仍处于连接状态，确定要关闭当前会话吗？', '关闭', {
         type: 'warning',
       }).then(
         () => {
-          const { session } = this
-          const { token, title } = session
           this.close(token)
-          this.removeSession(token)
-          this.setSession(null)
-          this.$notify.info({
-            title: '会话已关闭',
-            message: title,
-          })
+          handler()
         },
         () => {}
       )
@@ -206,11 +247,15 @@ export default {
   flex: none;
 }
 
-.alert {
+.close-mocker-alert {
   height: 24px;
   flex: none;
   box-sizing: border-box;
   border-radius: 0;
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.04);
+
+  .timer {
+    font-weight: bold;
+  }
 }
 </style>

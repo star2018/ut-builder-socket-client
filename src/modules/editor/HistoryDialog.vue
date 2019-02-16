@@ -3,7 +3,7 @@
     :title="title"
     class="history-dialog"
     :visible.sync="visibility"
-    :close-on-click-modal="false"
+    :width="style.width"
     @closed="reset"
   >
     <div class="top-bar">
@@ -38,8 +38,8 @@
 
     <lazy-list
       v-if="filteredHistory.length"
-      :style="{ height: getListHeight() + 'px' }"
       class="history-list"
+      :style="{ height: style.height }"
       :class="{ checking }"
       key-prop="key"
       :data="filteredHistory"
@@ -121,6 +121,7 @@ export default {
     return {
       checking: false,
       visibility: this.$props.visible,
+      style: this.getStyle(),
       keyword: '',
       history: [],
     }
@@ -174,6 +175,7 @@ export default {
     visibility(visible) {
       this.$emit('update:visible', !!visible)
       if (visible) {
+        this.style = this.getStyle()
         this.refresh()
       }
     },
@@ -198,8 +200,11 @@ export default {
       }))
     },
 
-    getListHeight() {
-      return Math.max(window.innerHeight - 350, 300)
+    getStyle() {
+      return {
+        width: Math.min(Math.max(window.innerWidth - 200, 400), 600) + 'px',
+        height: Math.min(Math.max(window.innerHeight - 350, 300), 400) + 'px',
+      }
     },
 
     formatTime(timestamp) {

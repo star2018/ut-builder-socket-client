@@ -22,10 +22,16 @@
       ></i>
     </span>
     <div class="code-box">
-      <code-mirror
+      <text-editor
+        ref="editor"
         v-if="editable"
         v-model="codeValue"
-        :options="editorOptions"
+        :editor-options="editorOptions"
+        :show-error-notify="showErrorNotify"
+        :locate-error-position="locateErrorPosition"
+        :format="format"
+        @format-error="$emit('format-error', arguments[0])"
+        editor="code"
       />
       <pre
         v-else
@@ -42,11 +48,11 @@ import highlight from 'highlight.js'
 import uuid from 'uuid/v4'
 
 import ClipboardButton from './ClipboardButton'
-import CodeMirror from './editor/CodeMirror'
+import TextEditor from './editor/TextEditor'
 
 export default {
   name: 'CodePanel',
-  components: { CodeMirror, ClipboardButton },
+  components: { TextEditor, ClipboardButton },
   props: {
     code: {
       type: [String, Boolean, Number],
@@ -84,11 +90,10 @@ export default {
       type: Boolean,
       default: false,
     },
-    editorOptions: {
-      type: Object,
-      default: () => ({}),
-    },
-    showErrorNotify: {
+    format: String,
+    editorOptions: Object,
+    showErrorNotify: Boolean,
+    locateErrorPosition: {
       type: Boolean,
       default: true,
     },
@@ -204,10 +209,13 @@ export default {
     pretty(code, silent) {
       const { editable } = this
       code = typeof code === 'string' ? code.trim() : ''
+      if (editable) {
+        return this.$refs.editor.pretty(code, silent)
+      }
       try {
         code = code
           ? prettier.format(code, {
-              parser: editable ? 'babel' : 'json',
+              parser: 'json',
               plugins: [prettierPlugins],
               printWidth: Math.floor(
                 this.$refs.codeBox.clientWidth / (editable ? 14 : 12)
@@ -215,7 +223,7 @@ export default {
             })
           : ''
       } catch (e) {
-        this.$emit('format-error', e.message)
+        this.$emit('format-error', e)
         if (!silent && this.showErrorNotify) {
           this.$notify.error({
             title: '格式化失败',
@@ -227,6 +235,15 @@ export default {
         }
       }
       return code
+    },
+
+    focus() {
+      this.$nextTick(() => {
+        const { codeMirror } = this.$refs
+        if (codeMirror) {
+          codeMirror.focus()
+        }
+      })
     },
 
     getCodeFragment(code) {

@@ -1,6 +1,6 @@
 <template>
   <el-dialog
-    title="Mock定义"
+    title="高级Mock"
     class="mocker-define-dialog"
     :visible.sync="visibility"
     :close-on-click-modal="false"
@@ -17,10 +17,12 @@
         class="code-editor"
         ref="codeEditor"
         text-editor="code"
+        text-format="json"
         placeholder="请输入模板数据"
         :editor.sync="editor"
         v-model="code"
         :show-error-notify="false"
+        locate-error-position
         @format-error="showError"
         @resize="prettyScript"
       >
@@ -36,12 +38,15 @@
       <code-panel
         v-else
         ref="codePanel"
-        editable
         v-model="mockScript"
         :show-collapse-button="false"
         :show-error-notify="false"
         @format-error="showError"
+        format="js"
+        editable
+        locate-error-position
       />
+
       <transition name="el-zoom-in-bottom">
         <el-alert
           type="error"
@@ -55,24 +60,39 @@
     </div>
 
     <div slot="footer" class="dialog-footer">
-      <div>
-        <el-button v-if="!scriptEditing" size="small" @click="editScript"
-          >脚本模式</el-button
-        >
-
-        <el-button v-else size="small" @click="$emit('show-history')"
-          >历史记录</el-button
+      <div class="button-bar">
+        <el-button
+          size="mini"
+          :disabled="!scriptEditing"
+          @click="$emit('show-history')"
+          >脚本历史记录</el-button
         >
 
         <el-button
-          size="small"
-          class="bigger-button"
-          v-if="!scriptEditing"
-          @click="toggleEditor"
-          >{{ editor === 'json' ? '文本模式' : 'JSON模式' }}</el-button
+          size="mini"
+          :class="{ active: scriptEditing }"
+          :disabled="scriptEditing"
+          @click="editScript()"
+          >自定义脚本</el-button
         >
 
-        <el-button size="small" @click="pretty">格式化</el-button>
+        <el-button size="mini" @click="pretty">格式化</el-button>
+
+        <el-button
+          size="mini"
+          :class="{ active: !scriptEditing && editor === 'text' }"
+          :disabled="!scriptEditing && editor === 'text'"
+          @click="toggleEditor('text')"
+          >JSON文本编辑</el-button
+        >
+
+        <el-button
+          size="mini"
+          :class="{ active: !scriptEditing && editor === 'json' }"
+          :disabled="!scriptEditing && editor === 'json'"
+          @click="toggleEditor('json')"
+          >JSON可视编辑</el-button
+        >
 
         <div class="timer-container">
           <div class="timer-box">
@@ -80,7 +100,7 @@
             <div class="timer-wrap" :class="{ disabled: !timer.enabled }">
               <span>间隔</span>
               <el-input-number
-                size="small"
+                size="mini"
                 :disabled="!timer.enabled"
                 :min="1"
                 :max="600"
@@ -92,10 +112,14 @@
           </div>
         </div>
       </div>
-      <div>
-        <el-button size="small" @click="visibility = false">取 消</el-button>
+
+      <div class="button-bar-right">
+        <mocker-helper />
+
+        <el-button size="mini" @click="visibility = false">取 消</el-button>
+
         <el-button
-          size="small"
+          size="mini"
           type="primary"
           :disabled="!submittable"
           @click="createMocker"
@@ -107,10 +131,7 @@
 </template>
 
 <script>
-import {
-  mapState as globalMapState,
-  mapActions as globalMapActions,
-} from 'vuex'
+import { mapState as globalMapState } from 'vuex'
 
 import JSON5 from 'json5'
 import throttle from 'lodash/throttle'
@@ -119,12 +140,12 @@ import uuid from 'uuid/v4'
 
 import CodeEditor from '../../components/CodeEditor'
 import CodePanel from '../../components/CodePanel'
+import MockerHelper from './MockerHelper'
 
 const defaultData = {
   code: '',
   mockScript: '',
   editor: 'text',
-  submittable: false,
   scriptEditing: false,
   errorMessage: {
     visible: false,
@@ -139,6 +160,7 @@ const defaultData = {
 export default {
   name: 'MockerDialog',
   components: {
+    MockerHelper,
     CodePanel,
     CodeEditor,
   },
@@ -153,13 +175,21 @@ export default {
     return {
       visibility: this.$props.visible,
       style: this.getStyle(),
-      submittable: false,
+      timer: {},
       ...cloneDeep(defaultData),
     }
   },
 
   computed: {
     ...globalMapState(['socket', 'session']),
+
+    submittable() {
+      const { scriptEditing, code, mockScript } = this
+      if (scriptEditing) {
+        return !!mockScript.trim()
+      }
+      return !!code.trim()
+    },
   },
 
   watch: {
@@ -170,35 +200,29 @@ export default {
     visibility(visible) {
       this.$emit('update:visible', !!visible)
       if (visible) {
+        const { session } = this
         this.style = this.getStyle()
-        this.$nextTick(() => {
-          this.$refs.codeEditor.focus()
-        })
+        if (session && session.mocker) {
+          const { script, delay } = session.mocker
+          if (delay) {
+            this.timer = {
+              enabled: true,
+              delay,
+            }
+          }
+          this.editScript(script)
+        } else {
+          this.focus()
+        }
       }
     },
 
     code() {
       this.setMockScript()
     },
-
-    mockScript(cur) {
-      if (!cur.trim()) {
-        this.submittable = false
-      } else if (this.scriptEditing) {
-        this.submittable = true
-      }
-    },
-
-    scriptEditing(cur) {
-      if (cur) {
-        this.mockScript = this.wrapScript()
-      }
-    },
   },
 
   methods: {
-    ...globalMapActions(['send']),
-
     setMockScript: throttle(
       function() {
         const { visibility, socket, session, code } = this
@@ -214,59 +238,99 @@ export default {
               key: id,
             })
             socket.once('message', (message) => {
-              if (this.visibility) {
+              if (this.visibility && !this.scriptEditing) {
                 const { type, data, key } = Object.assign({}, message)
                 if (type === 'message' && key === id) {
                   this.mockScript = data
-                  if (data) {
-                    this.submittable = true
-                  }
                 }
               }
             })
           }
         } catch (e) {
-          this.submittable = false
-          //
+          if (!this.scriptEditing) {
+            this.mockScript = ''
+          }
         }
       },
-      200,
+      500,
       {
-        leading: false,
+        leading: true,
         trailing: true,
       }
     ),
 
     getStyle() {
       return {
-        width: Math.min(Math.max(window.innerWidth - 350, 800), 1200) + 'px',
-        height: Math.max(window.innerHeight - 300, 300) + 'px',
+        width: Math.min(Math.max(window.innerWidth - 200, 1020), 1080) + 'px',
+        height: Math.min(Math.max(window.innerHeight - 300, 300), 600) + 'px',
       }
     },
 
     createMocker() {
       const { timer } = this
-      this.prettyScript(false)
+      this.pretty(false)
       this.$nextTick(() => {
         if (!this.errorMessage.visible) {
-          const script = this.scriptEditing
+          const script = (this.scriptEditing
             ? this.mockScript
             : this.wrapScript()
-          this.$emit('create-mocker', {
-            script: this.$refs.codePanel.pretty(script, true),
-            delay: timer.enabled ? +timer.delay : 0,
-          })
-          this.visibility = false
+          ).trim()
+          if (script) {
+            this.$emit('create-mocker', {
+              script,
+              delay: timer.enabled ? +timer.delay : 0,
+            })
+            this.visibility = false
+          } else {
+            this.showError({ message: 'Mock脚本不能为空' })
+          }
         }
       })
     },
 
-    toggleEditor() {
-      this.editor = this.editor === 'json' ? 'text' : 'json'
+    toggleEditor(editor) {
+      const toggle = () => {
+        this.scriptEditing = false
+        this.editor = editor
+        this.setMockScript()
+        this.$nextTick(() => {
+          this.pretty()
+          this.focus()
+        })
+      }
+      if (this.scriptEditing) {
+        this.$confirm(
+          '切换至JSON编辑器将导致已编辑的自定义脚本丢失，确定要切换吗？',
+          '提示',
+          {
+            type: 'warning',
+          }
+        ).then(toggle, () => {
+          this.focus()
+        })
+      } else {
+        toggle()
+      }
     },
 
-    editScript() {
+    editScript(script) {
+      if (this.scriptEditing) {
+        return
+      }
       this.scriptEditing = true
+      this.mockScript = script || this.wrapScript()
+      this.focus()
+    },
+
+    focus() {
+      this.$nextTick(() => {
+        const { codePanel, codeEditor } = this.$refs
+        if (codeEditor) {
+          codeEditor.focus()
+        } else if (codePanel) {
+          codePanel.focus()
+        }
+      })
     },
 
     reset() {
@@ -289,22 +353,21 @@ export default {
       )
     },
 
-    pretty() {
+    pretty(silent) {
       const codeEditor = this.$refs.codeEditor
       if (codeEditor) {
         codeEditor.pretty()
       }
-      this.prettyScript()
+      this.prettyScript(silent)
     },
-
-    showHistory() {},
 
     showError(error) {
       if (!error) {
         return
       }
       const { errorMessage, errorAlertCloseTimer } = this
-      errorMessage.content = error
+      errorMessage.content =
+        (typeof error === 'object' ? error.message : '') || `${error}`
       errorMessage.visible = true
       clearTimeout(errorAlertCloseTimer)
       this.errorAlertCloseTimer = setTimeout(() => {
@@ -313,7 +376,7 @@ export default {
     },
 
     wrapScript() {
-      return `function Runner(data){return ${this.mockScript.trim() ||
+      return `function main(data){return ${this.mockScript.trim() ||
         'Mock.mock({})'}}`
     },
   },
@@ -346,6 +409,20 @@ export default {
   display: flex;
   align-items: center;
   justify-content: space-between;
+
+  .button-bar {
+    .active {
+      color: #3a8ee6;
+      border-color: #3a8ee6;
+    }
+  }
+
+  .button-bar-right {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    line-height: 1em;
+  }
 }
 
 .editor-wrap {
@@ -377,11 +454,12 @@ export default {
     height: 100%;
 
     .checker {
-      margin: 0 8px 0 24px;
+      margin: 1px 8px 0 24px;
+      line-height: 1em;
     }
 
     .input {
-      width: 108px;
+      width: 95px;
       margin: 0 4px;
     }
 
@@ -391,9 +469,5 @@ export default {
       }
     }
   }
-}
-
-.bigger-button {
-  width: 90px;
 }
 </style>

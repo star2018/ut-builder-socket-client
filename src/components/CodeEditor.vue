@@ -20,10 +20,12 @@
           v-else
           ref="textEditor"
           :editor="textEditor"
+          :format="textFormat"
           :placeholder="placeholder"
           :disabled="disabled"
           v-model="innerValue"
           :show-error-notify="showErrorNotify"
+          :locate-error-position="locateErrorPosition"
           @format-error="$emit('format-error', arguments[0])"
           @commit="$emit('commit')"
         />
@@ -54,10 +56,12 @@
         v-else
         ref="textEditor"
         :editor="textEditor"
+        :format="textFormat"
         :placeholder="placeholder"
         :disabled="disabled"
         v-model="innerValue"
         :show-error-notify="showErrorNotify"
+        :locate-error-position="locateErrorPosition"
         @format-error="$emit('format-error', arguments[0])"
         @commit="$emit('commit')"
       />
@@ -93,11 +97,16 @@ export default {
       default: 'text',
     },
     textEditor: String,
+    textFormat: String,
     previewer: {
       type: [Boolean, String, Array],
       default: true,
     },
     showErrorNotify: {
+      type: Boolean,
+      default: true,
+    },
+    locateErrorPosition: {
       type: Boolean,
       default: true,
     },
@@ -146,8 +155,9 @@ export default {
           this.innerValue = JSON.stringify(json)
         } catch (e) {
           const error = e.message.replace(/^JSON5:\s*/i, '')
+          e.message = error
           this.$emit('update:editor', pre)
-          this.$emit('format-error', error)
+          this.$emit('format-error', e)
           if (this.showErrorNotify) {
             this.$notify.error({
               title: 'JSON格式错误',
@@ -184,11 +194,12 @@ export default {
     },
 
     focus() {
-      if (this.editor !== 'json') {
-        this.$nextTick(() => {
-          this.$refs.textEditor.focus()
-        })
-      }
+      this.$nextTick(() => {
+        const { textEditor } = this.$refs
+        if (textEditor) {
+          textEditor.focus()
+        }
+      })
     },
 
     handleResize() {

@@ -2,10 +2,10 @@
   <div class="root">
     <transition name="el-zoom-in-top">
       <el-alert
-        class="alert"
+        class="session-socket-alert"
         v-show="disconnected"
         @close="disconnected = false"
-        title="Mock服务已关闭或重启，请刷新当前页面"
+        title="服务已关闭或重启，请刷新当前页面"
         type="error"
         center
         show-icon
@@ -14,10 +14,10 @@
 
     <transition name="el-zoom-in-top">
       <el-alert
-        class="alert"
+        class="session-socket-alert"
         v-show="showConnectedAlert"
         @close="showConnectedAlert = false"
-        title="Mock服务已连接"
+        title="服务已连接"
         type="success"
         center
         show-icon
@@ -123,6 +123,13 @@ body {
     text-overflow: ellipsis;
   }
 }
+
+.el-alert__closebtn {
+  top: 50%;
+  transform: translateY(-50%);
+  color: #606266;
+  right: 22px;
+}
 </style>
 
 <style lang="less" scoped>
@@ -131,7 +138,7 @@ body {
   height: 100%;
 }
 
-.alert {
+.session-socket-alert {
   position: fixed;
   left: 0;
   top: 0;

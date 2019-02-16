@@ -23,6 +23,11 @@
         title="历史记录"
         @click="$emit('show-history')"
       ></i>
+      <i
+        class="iconfont icon-send"
+        title="发送"
+        @click="$emit('send-data')"
+      ></i>
     </div>
     <div class="button-bar right-bar">
       <i
@@ -51,7 +56,7 @@ export default {
     },
     mocking() {
       const { session } = this
-      return session ? !!session.mocker : false
+      return session && session.mocker ? !!session.mocker.enabled : false
     },
   },
 }

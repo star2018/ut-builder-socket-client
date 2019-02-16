@@ -1,10 +1,11 @@
 <template>
   <div class="text-editor" :class="{ 'is-code-editor': editor === 'code' }">
-    <div ref="textarea" class="code-editor-wrap" v-if="editor === 'code'">
+    <div ref="editorBox" class="code-editor-wrap" v-if="editor === 'code'">
       <span v-show="!value" class="placeholder-mocker">{{ placeholder }}</span>
       <code-mirror
         ref="codeEditor"
         :value="value"
+        :options="codeEditorOptions"
         @input="$emit('input', arguments[0])"
         @ready="handleReady"
       />
@@ -13,7 +14,7 @@
     <textarea
       v-else
       class="text-editor-input"
-      ref="textarea"
+      ref="editorBox"
       :placeholder="placeholder"
       :disabled="disabled"
       :class="{ disabled }"
@@ -45,6 +46,16 @@ export default {
       type: String,
       default: 'textarea',
     },
+    format: {
+      type: String,
+      default() {
+        if (this.editor === 'code') {
+          return 'js'
+        }
+        return 'json'
+      },
+    },
+    editorOptions: Object,
     disabled: {
       type: Boolean,
       default: false,
@@ -54,6 +65,10 @@ export default {
       default: '',
     },
     showErrorNotify: {
+      type: Boolean,
+      default: true,
+    },
+    locateErrorPosition: {
       type: Boolean,
       default: true,
     },
@@ -67,20 +82,38 @@ export default {
         },
       })
     },
+
+    codeEditorOptions() {
+      const { editorOptions, format } = this
+      const options = Object.assign({}, editorOptions)
+      if (/^js$/i.test(format)) {
+        options.mode = 'javascript'
+      } else if (/^json$/i.test(format)) {
+        options.mode = 'application/json'
+      }
+      return options
+    },
   },
 
   methods: {
     pretty(value = this.value, silent) {
+      const { editor, format } = this
+      if (!/^(?:json|js)$/i.test(format)) {
+        return value
+      }
       try {
         value = value.trim()
           ? prettier.format(value, {
-              parser: 'json5',
+              parser:
+                editor === 'code' && /^js$/i.test(format)
+                  ? 'babel'
+                  : 'json-stringify',
               plugins: [prettierPlugins],
-              printWidth: Math.floor(this.$refs.textarea.clientWidth / 14),
+              printWidth: Math.floor(this.$refs.editorBox.clientWidth / 14),
             })
           : ''
       } catch (e) {
-        this.$emit('format-error', e.message)
+        this.$emit('format-error', e)
         if (!silent && this.showErrorNotify) {
           this.$notify.error({
             title: 'JSON格式化失败',
@@ -89,6 +122,13 @@ export default {
               e.message
             }</pre>`,
           })
+        }
+        if (this.locateErrorPosition && e.loc) {
+          const editor = this.$refs.codeEditor
+          if (editor && e.loc.start) {
+            const { line, column } = e.loc.start
+            editor.setCursor(line, column)
+          }
         }
       }
       return value
@@ -99,7 +139,7 @@ export default {
         if (this.editor === 'code') {
           this.$refs.codeEditor.focus()
         } else {
-          this.$refs.textarea.focus()
+          this.$refs.editorBox.focus()
         }
       })
     },

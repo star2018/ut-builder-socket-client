@@ -24,11 +24,13 @@
           <code-panel
             v-if="item.type === 'json'"
             class="code-panel"
+            :class="{ hover: item.hovered }"
             :code="item.content"
             :show-collapse-button="false"
-            :show-copy-button="false"
             :collapsed.sync="item.collapsed"
             :collapsible.sync="item.collapsible"
+            @mouseenter.native="item.hovered = true"
+            @mouseleave.native="item.hovered = false"
           />
 
           <span v-else>{{ item.content }}</span>
@@ -78,20 +80,18 @@ export default {
 
     mocking() {
       const { session } = this
-      return session ? !!session.mocker : false
+      return session && session.mocker ? !!session.mocker.enabled : false
     },
   },
 
   watch: {
     messages() {
-      this.$nextTick(() => {
-        const messageList = this.$refs.messageList
-        if (!this.mocking) {
-          messageList.scrollToBottom()
-        } else {
-          messageList.scrollToBottomLazy(20)
-        }
-      })
+      const messageList = this.$refs.messageList
+      if (!this.mocking) {
+        messageList.scrollToBottom()
+      } else {
+        messageList.scrollToBottomLazy()
+      }
     },
   },
 }
@@ -102,11 +102,20 @@ export default {
   .server,
   .client {
     .code-panel {
-      .code-wrap {
-        background-color: #fff;
+      &.hover {
+        .button-bar {
+          display: block;
+        }
       }
+
       .button-bar {
+        padding-right: 8px;
         display: none;
+      }
+
+      .code-wrap,
+      .button-bar {
+        background-color: #fff;
       }
     }
   }
@@ -282,7 +291,6 @@ export default {
     .content {
       padding: 0;
       background-color: #fff;
-      /*border: 1px solid #e2e2e2;*/
 
       .code-panel {
         overflow: auto;

@@ -155,8 +155,8 @@ export default {
             success: true,
           })
           if (session.mocker) {
-            const { timer, caller } = session.mocker
-            if (!timer && caller) {
+            const { caller } = session.mocker
+            if (caller) {
               caller(parse(data))
             }
           }
@@ -226,29 +226,23 @@ export default {
 
     // 设置模拟脚本
     setMocker(state, payload) {
-      const { token, script, timer, caller } = payload
+      const { token, ...setup } = payload
       for (const session of state.sessionList) {
         if (session.token === token) {
-          if (session.mocker) {
-            if (session.mocker.timer) {
-              clearInterval(session.mocker.timer)
+          const { mocker, path } = session
+          const { enabled, script } = setup
+          if (mocker) {
+            if (mocker.timer) {
+              clearInterval(mocker.timer)
             }
           }
-          if (caller || timer) {
-            session.mocker = {
-              script,
-              timer,
-              caller,
-            }
-            if (script) {
-              pushLocalStorageData(getHistoryKey(session.path, 'mocker'), {
-                type: 'json',
-                timestamp: Date.now(),
-                content: script,
-              })
-            }
-          } else {
-            session.mocker = null
+          session.mocker = Object.assign({}, mocker, setup)
+          if (enabled && script) {
+            pushLocalStorageData(getHistoryKey(path, 'mocker'), {
+              type: 'json',
+              timestamp: Date.now(),
+              content: script,
+            })
           }
           break
         }
@@ -318,7 +312,7 @@ export default {
             if (mocker.timer) {
               clearInterval(mocker.timer)
             }
-            session.mocker = null
+            Object.assign(mocker, { enabled: false })
           }
           session.messages.push({
             time,
@@ -388,11 +382,12 @@ export default {
           timestamp: now,
           key: uuid(),
           content,
-          type,
           from,
           success,
+          type,
           collapsed: true,
           collapsible: false,
+          hovered: false,
         })
       }
     },
