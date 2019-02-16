@@ -171,11 +171,13 @@ export default {
         const space = Math.abs(
           scrollHeight - (root.scrollTop + root.clientHeight)
         )
-        if (space < (+throttle || 10)) {
-          this.$nextTick(() => {
+        this.$nextTick(() => {
+          if (space <= (+throttle || 0)) {
             scrollElementToBottom(root, true)
-          })
-        }
+          } else {
+            root.scrollTop = scrollHeight - root.clientHeight - space
+          }
+        })
       }
     },
 

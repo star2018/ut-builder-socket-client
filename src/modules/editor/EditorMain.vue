@@ -203,9 +203,15 @@ export default {
       let timer = null
       let caller = null
       if (delay) {
+        let time = +delay
+        session.execMockAfterTime = time
         timer = setInterval(() => {
-          this.execMock(session, {})
-        }, delay * 1000)
+          session.execMockAfterTime = --time
+          if (!time) {
+            time = +delay
+            this.execMock(session, {})
+          }
+        }, 1000)
       } else {
         caller = (message) => {
           this.execMock(session, message)

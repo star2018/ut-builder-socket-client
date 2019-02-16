@@ -7,6 +7,7 @@
         @close="disconnected = false"
         title="服务已关闭或重启，请刷新当前页面"
         type="error"
+        :closable="false"
         center
         show-icon
       />

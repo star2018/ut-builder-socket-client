@@ -234,6 +234,7 @@ export default {
           if (mocker) {
             if (mocker.timer) {
               clearInterval(mocker.timer)
+              session.execMockAfterTime = -1
             }
           }
           session.mocker = Object.assign({}, mocker, setup)
@@ -296,6 +297,7 @@ export default {
         editor: 'text',
         disconnected: false,
         mocker: null,
+        execMockAfterTime: -1,
       })
     },
 
@@ -311,6 +313,7 @@ export default {
           if (mocker) {
             if (mocker.timer) {
               clearInterval(mocker.timer)
+              session.execMockAfterTime = -1
             }
             Object.assign(mocker, { enabled: false })
           }

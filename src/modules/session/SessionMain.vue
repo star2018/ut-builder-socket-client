@@ -15,7 +15,9 @@
     >
       <div slot="title">
         <span>{{ mockAlertTitle }}</span>
-        <span class="timer" v-if="mockTimerString">{{ mockTimerString }}</span>
+        <span class="timer" v-if="execMockAfterTime !== -1">{{
+          execMockAfterTime
+        }}</span>
       </div>
     </el-alert>
 
@@ -53,11 +55,17 @@ export default {
       return session && session.mocker ? !!session.mocker.enabled : false
     },
 
+    execMockAfterTime() {
+      const { session, mocking } = this
+      return mocking ? session.execMockAfterTime : -1
+    },
+
     mockAlertTitle() {
       const { session, mocking } = this
       if (mocking) {
-        const { timer } = session.mocker
-        return `自动发送开启中（${timer ? '定时发送' : '自动回复'}）`
+        return `自动发送开启中（${
+          session.mocker.timer ? '定时发送' : '自动回复'
+        }）`
       }
       return '自动发送已终止'
     },
@@ -68,24 +76,6 @@ export default {
       if (cur !== pre) {
         this.detachEvent(pre)
         this.attachEvent(cur)
-      }
-    },
-
-    mocking(cur) {
-      clearInterval(this.mockTimer)
-      this.mockTimerString = ''
-      if (cur) {
-        const { delay } = this.session.mocker
-        if (delay) {
-          let time = +delay
-          this.mockTimerString = `${time}`
-          this.mockTimer = setInterval(() => {
-            this.mockTimerString = `${--time}`
-            if (!time) {
-              time = +delay
-            }
-          }, 1000)
-        }
       }
     },
   },
