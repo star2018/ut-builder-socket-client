@@ -321,6 +321,8 @@ export default {
   height: 100%;
   overflow: auto;
   font-size: 12px;
+  position: relative;
+  z-index: 1;
 }
 
 .code-wrap {

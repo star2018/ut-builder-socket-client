@@ -38,6 +38,8 @@ import Vue from 'vue'
 import { mapState, mapActions } from 'vuex'
 import ElementUI from 'element-ui'
 
+import '@babel/polyfill'
+
 import SplitLayout from './components/SplitLayout'
 import SessionList from './modules/sessionList/SessionListMain'
 import SessionPanel from './modules/session/SessionMain'
